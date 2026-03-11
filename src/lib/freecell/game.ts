@@ -171,18 +171,105 @@ function canPlaceOnFoundation(card: Card, state: GameState): number {
 	return -1;
 }
 
+function isSameSelection(
+	sel: Selection,
+	target: 'tableau' | 'freecell' | 'foundation',
+	index: number,
+	cardIndex?: number
+): boolean {
+	if (sel.source !== target) return false;
+	if (sel.source === 'freecell') return sel.index === index;
+	// For tableau, check if clicking the same card(s)
+	return sel.index === index;
+}
+
+/** Try to auto-move the selected card(s) to the best available destination.
+ *  Priority: foundation > non-empty tableau column > empty tableau column > free cell */
+function tryAutoMove(state: GameState): boolean {
+	const sel = state.selected!;
+	let cards: Card[];
+
+	if (sel.source === 'tableau') {
+		const col = state.tableau[sel.index];
+		cards = col.slice(col.length - sel.cardCount);
+	} else {
+		cards = [state.freeCells[sel.index]!];
+	}
+
+	const topCard = cards[0];
+
+	// 1. Try foundation (single card only)
+	if (cards.length === 1) {
+		const fi = canPlaceOnFoundation(topCard, state);
+		if (fi !== -1) {
+			state.selected = sel;
+			return attemptMove(state, 'foundation', fi);
+		}
+	}
+
+	// 2. Try non-empty tableau columns
+	for (let i = 0; i < 8; i++) {
+		if (sel.source === 'tableau' && sel.index === i) continue;
+		const col = state.tableau[i];
+		if (col.length === 0) continue;
+		if (canPlaceOnTableau(topCard, col)) {
+			const limit = maxMovable(state, false);
+			if (cards.length <= limit) {
+				state.selected = sel;
+				return attemptMove(state, 'tableau', i);
+			}
+		}
+	}
+
+	// 3. Try empty tableau columns
+	for (let i = 0; i < 8; i++) {
+		if (sel.source === 'tableau' && sel.index === i) continue;
+		const col = state.tableau[i];
+		if (col.length === 0) {
+			const limit = maxMovable(state, true);
+			if (cards.length <= limit) {
+				state.selected = sel;
+				return attemptMove(state, 'tableau', i);
+			}
+		}
+	}
+
+	// 4. Try free cell (single card only)
+	if (cards.length === 1) {
+		for (let i = 0; i < 4; i++) {
+			if (state.freeCells[i] === null) {
+				state.selected = sel;
+				return attemptMove(state, 'freecell', i);
+			}
+		}
+	}
+
+	return false;
+}
+
 export function handleClick(
 	state: GameState,
 	target: 'tableau' | 'freecell' | 'foundation',
 	index: number,
 	cardIndex?: number // position within tableau column
 ): GameState {
-	const newState = structuredClone(state);
+	const newState: GameState = JSON.parse(JSON.stringify(state));
 
 	if (newState.won) return newState;
 
 	if (newState.selected) {
-		// Attempt to place
+		// If clicking the same selection, try auto-move
+		if (isSameSelection(newState.selected, target, index, cardIndex)) {
+			const moved = tryAutoMove(newState);
+			newState.selected = null;
+			if (moved) {
+				newState.moves++;
+				autoFoundation(newState);
+			}
+			return newState;
+		}
+
+		// Attempt to place at clicked target
 		const result = attemptMove(newState, target, index);
 		newState.selected = null;
 		if (result) {

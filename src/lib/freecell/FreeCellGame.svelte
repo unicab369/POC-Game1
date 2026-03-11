@@ -185,10 +185,10 @@
 
 <style>
 	.board {
-		--card-w: 70px;
-		--card-h: 100px;
-		--card-compact-h: 40px;
-		--card-gap: 6px;
+		--card-w: 78px;
+		--card-h: 110px;
+		--card-compact-h: 38px;
+		--card-gap: 4px;
 		--card-rank-fs: 28px;
 		--card-suit-fs: 24px;
 		--card-big-suit-fs: 58px;
@@ -197,7 +197,7 @@
 		position: relative;
 		max-width: 700px;
 		margin: 0 auto;
-		padding: 1rem;
+		padding: 0.5rem;
 		padding-bottom: 4rem;
 	}
 
@@ -211,7 +211,7 @@
 		font-weight: 600;
 		padding: 0.4rem 0.8rem;
 		border-radius: 8px;
-		margin-bottom: 0.25rem;
+		margin-bottom: 0;
 		transition: color 0.2s, background 0.2s;
 	}
 
@@ -225,7 +225,7 @@
 		justify-content: center;
 		gap: 1.5rem;
 		align-items: center;
-		margin-bottom: 0.75rem;
+		margin-bottom: 0.4rem;
 	}
 
 	.stat {
@@ -244,8 +244,8 @@
 	.top-bar {
 		display: flex;
 		justify-content: space-between;
-		margin-bottom: 1.5rem;
-		gap: 1rem;
+		margin-bottom: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.cell-group {
@@ -397,22 +397,22 @@
 
 	@media (max-width: 600px) {
 		.board {
-			--card-w: calc((100vw - 1rem - 7 * 4px) / 8);
-			--card-h: calc(var(--card-w) * 100 / 70);
-			--card-compact-h: calc(var(--card-w) * 0.55);
-			--card-gap: 4px;
+			--card-w: calc((100vw - 0.5rem - 7 * 3px) / 8);
+			--card-h: calc(var(--card-w) * 1.4);
+			--card-compact-h: calc(var(--card-w) * 0.5);
+			--card-gap: 3px;
 			--card-rank-fs: calc(var(--card-w) * 0.38);
 			--card-suit-fs: calc(var(--card-w) * 0.32);
 			--card-big-suit-fs: calc(var(--card-w) * 0.8);
 			--card-face-fs: calc(var(--card-w) * 1.05);
 
 			max-width: 100%;
-			padding: 0.5rem;
+			padding: 0.25rem;
 		}
 
 		.top-bar {
-			margin-bottom: 0.75rem;
-			gap: 0.5rem;
+			margin-bottom: 0.5rem;
+			gap: 0.25rem;
 		}
 	}
 </style>

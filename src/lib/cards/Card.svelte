@@ -76,8 +76,8 @@
 	}
 
 	.card.selected {
-		border-color: var(--gold, #f1c40f);
-		box-shadow: 0 0 10px rgba(241, 196, 15, 0.6);
+		border-color: #00e5ff;
+		box-shadow: 0 0 12px rgba(0, 229, 255, 0.7);
 	}
 
 	.card.face-down {
@@ -117,7 +117,7 @@
 	}
 
 	.card.selected:hover {
-		border-color: var(--gold, #f1c40f);
+		border-color: #00e5ff;
 	}
 
 	.red {

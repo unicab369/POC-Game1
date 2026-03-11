@@ -145,6 +145,7 @@
 		max-width: 750px;
 		margin: 0 auto;
 		padding: 1rem;
+		padding-bottom: 4rem;
 	}
 
 	.back-btn {
@@ -253,10 +254,17 @@
 	}
 
 	.controls {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
 		display: flex;
 		justify-content: center;
 		gap: 1rem;
-		padding: 1rem;
+		padding: 0.75rem 1rem;
+		background: var(--bg-primary);
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+		z-index: 10;
 	}
 
 	.btn {

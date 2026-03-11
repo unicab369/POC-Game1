@@ -50,7 +50,7 @@ export function newGame(): GameState {
 }
 
 export function dealFromStock(state: GameState): GameState {
-	const newState = structuredClone(state);
+	const newState: GameState = JSON.parse(JSON.stringify(state));
 	newState.selected = null;
 
 	if (newState.stock.length === 0) return newState;
@@ -126,7 +126,7 @@ export function handleClick(
 	index: number,
 	cardIndex?: number
 ): GameState {
-	const newState = structuredClone(state);
+	const newState: GameState = JSON.parse(JSON.stringify(state));
 
 	if (newState.won) return newState;
 
