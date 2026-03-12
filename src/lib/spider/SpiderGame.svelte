@@ -7,7 +7,9 @@
 		dealFromStock,
 		executeMove,
 		validDescendingRun,
-		canPlaceOnTableau
+		canPlaceOnTableau,
+		findCompletedRun,
+		applyCompletedRunRemoval
 	} from './game';
 	import type { GameState } from './game';
 
@@ -48,6 +50,29 @@
 	let animSourceIndex: number | null = $state(null);
 	let animCardIndex: number | null = $state(null);
 	const MOVE_ANIM_MS = 200;
+
+	interface SuitAnim {
+		cards: SpiderCard[];
+		fromX: number;
+		fromY: number;
+		toX: number;
+		toY: number;
+		started: boolean;
+	}
+	let suitAnim: SuitAnim | null = $state(null);
+	const SUIT_ANIM_MS = 500;
+
+	interface DealAnimCard {
+		card: SpiderCard;
+		toX: number;
+		toY: number;
+		started: boolean;
+		done: boolean;
+	}
+	let dealAnim: { fromX: number; fromY: number; cards: DealAnimCard[] } | null = $state(null);
+	let dealPendingState: GameState | null = null;
+	const DEAL_ANIM_MS = 150;
+	const DEAL_STAGGER_MS = 60;
 
 	let shakeTarget: { col: number; cardIndex: number } | null = $state(null);
 
@@ -142,6 +167,48 @@
 		}
 	}
 
+	function getCompletedSuitPos(): { x: number; y: number } | null {
+		const markers = document.querySelectorAll('.suit-marker:not(.filled)');
+		if (markers.length === 0) return null;
+		const r = markers[0].getBoundingClientRect();
+		return { x: r.left, y: r.top };
+	}
+
+	function checkAndAnimateCompletedRun() {
+		const run = findCompletedRun(game);
+		if (!run) return;
+
+		const from = getSourcePos(run.colIndex, run.runStart);
+		const to = getCompletedSuitPos();
+
+		if (!from || !to) {
+			game = applyCompletedRunRemoval(game);
+			return;
+		}
+
+		animSourceIndex = run.colIndex;
+		animCardIndex = run.runStart;
+
+		suitAnim = {
+			cards: run.cards,
+			fromX: from.x,
+			fromY: from.y,
+			toX: to.x,
+			toY: to.y,
+			started: false
+		};
+
+		requestAnimationFrame(() => {
+			if (suitAnim) suitAnim.started = true;
+			setTimeout(() => {
+				game = applyCompletedRunRemoval(game);
+				suitAnim = null;
+				animSourceIndex = null;
+				animCardIndex = null;
+			}, SUIT_ANIM_MS);
+		});
+	}
+
 	function startTimer() {
 		stopTimer();
 		elapsed = 0;
@@ -177,7 +244,7 @@
 
 	function onTableauClick(columnIndex: number, cardIndex: number) {
 		hint = null;
-		if (moveAnim) return;
+		if (moveAnim || suitAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
@@ -187,7 +254,7 @@
 		const found = findAutoTarget(columnIndex, cardIndex);
 		if (!found) { triggerShake(columnIndex, cardIndex); return; }
 
-		const result = executeMove(game, columnIndex, cardIndex, found.destIndex);
+		const result = executeMove(game, columnIndex, cardIndex, found.destIndex, true);
 		if (!result) { triggerShake(columnIndex, cardIndex); return; }
 
 		const from = getSourcePos(columnIndex, cardIndex);
@@ -196,6 +263,7 @@
 		if (!from || !to) {
 			pushHistory();
 			game = result;
+			requestAnimationFrame(() => checkAndAnimateCompletedRun());
 			return;
 		}
 
@@ -215,13 +283,81 @@
 				moveAnim = null;
 				animSourceIndex = null;
 				animCardIndex = null;
+				requestAnimationFrame(() => checkAndAnimateCompletedRun());
 			}, MOVE_ANIM_MS);
 		});
 	}
 
+	function getStockPos(): { x: number; y: number } | null {
+		const el = document.querySelector('.stock-fan');
+		if (!el) return null;
+		const r = el.getBoundingClientRect();
+		return { x: r.left, y: r.top };
+	}
+
 	function onStockClick() {
+		if (suitAnim || dealAnim || moveAnim) return;
+		if (game.stock.length === 0) return;
+		if (game.tableau.some((col) => col.length === 0)) return;
+
+		// Capture the 10 cards about to be dealt and target positions before state change
+		const stockFrom = getStockPos();
+		if (!stockFrom) {
+			pushHistory();
+			game = dealFromStock(game, true);
+			requestAnimationFrame(() => checkAndAnimateCompletedRun());
+			return;
+		}
+
+		const targets: { x: number; y: number }[] = [];
+		for (let col = 0; col < 10; col++) {
+			const pos = getDestPos(col);
+			targets.push(pos ?? stockFrom);
+		}
+
+		// Get the cards that will be dealt (last 10 from stock, reversed since stock pops)
+		const dealCards: SpiderCard[] = [];
+		for (let i = 0; i < 10; i++) {
+			const card = game.stock[game.stock.length - 1 - i];
+			dealCards.push({ ...card, faceUp: true });
+		}
+
+		// Compute and save new state but don't apply yet
 		pushHistory();
-		game = dealFromStock(game);
+		dealPendingState = dealFromStock(game, true);
+
+		dealAnim = {
+			fromX: stockFrom.x,
+			fromY: stockFrom.y,
+			cards: dealCards.map((card, i) => ({
+				card,
+				toX: targets[i].x,
+				toY: targets[i].y,
+				started: false,
+				done: false
+			}))
+		};
+
+		// Stagger the animations
+		for (let i = 0; i < 10; i++) {
+			setTimeout(() => {
+				if (!dealAnim) return;
+				requestAnimationFrame(() => {
+					if (!dealAnim) return;
+					dealAnim.cards[i].started = true;
+				});
+			}, i * DEAL_STAGGER_MS);
+		}
+
+		// After all animations complete, apply the state
+		setTimeout(() => {
+			if (dealPendingState) {
+				game = dealPendingState;
+				dealPendingState = null;
+			}
+			dealAnim = null;
+			requestAnimationFrame(() => checkAndAnimateCompletedRun());
+		}, 9 * DEAL_STAGGER_MS + DEAL_ANIM_MS + 50);
 	}
 
 	function onNewGame() {
@@ -243,6 +379,9 @@
 
 	function onUndo() {
 		hint = null;
+		suitAnim = null;
+		animSourceIndex = null;
+		animCardIndex = null;
 		if (history.length === 0) return;
 		game = history[history.length - 1];
 		history = history.slice(0, -1);
@@ -344,10 +483,13 @@
 
 		const destIndex = findDropTarget(e.clientX, e.clientY);
 		if (destIndex !== null) {
-			const result = executeMove(game, drag.sourceIndex, drag.cardIndex, destIndex);
+			const result = executeMove(game, drag.sourceIndex, drag.cardIndex, destIndex, true);
 			if (result) {
 				pushHistory();
 				game = result;
+				drag = null;
+				requestAnimationFrame(() => checkAndAnimateCompletedRun());
+				return;
 			}
 		}
 
@@ -459,6 +601,21 @@
 		</div>
 	{/if}
 
+	<!-- Deal Animation Overlay -->
+	{#if dealAnim}
+		{#each dealAnim.cards as da, i}
+			{#if !da.done}
+				<div
+					class="deal-anim"
+					class:deal-animating={da.started}
+					style="left: {dealAnim.fromX}px; top: {dealAnim.fromY}px; --deal-tx: {da.toX - dealAnim.fromX}px; --deal-ty: {da.toY - dealAnim.fromY}px;"
+				>
+					<CardComponent card={da.card} />
+				</div>
+			{/if}
+		{/each}
+	{/if}
+
 	<!-- Move Animation Overlay -->
 	{#if moveAnim}
 		<div
@@ -469,6 +626,21 @@
 			{#each moveAnim.cards as card, i}
 				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 24px));">
 					<CardComponent {card} compact={i < moveAnim.cards.length - 1} />
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- Suit Completion Animation Overlay -->
+	{#if suitAnim}
+		<div
+			class="suit-anim"
+			class:animating={suitAnim.started}
+			style="left: {suitAnim.fromX}px; top: {suitAnim.fromY}px; --suit-tx: {suitAnim.toX - suitAnim.fromX}px; --suit-ty: {suitAnim.toY - suitAnim.fromY}px;"
+		>
+			{#each suitAnim.cards as card, i}
+				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 24px));">
+					<CardComponent {card} compact={i < suitAnim.cards.length - 1} />
 				</div>
 			{/each}
 		</div>
@@ -696,6 +868,38 @@
 	.move-anim.animating {
 		transform: translate(var(--move-tx), var(--move-ty));
 		transition: transform 200ms ease-out;
+	}
+
+	/* Deal animation */
+	.deal-anim {
+		position: fixed;
+		pointer-events: none;
+		z-index: 998;
+		width: var(--card-w, 60px);
+		transform: translate(0, 0);
+		transition: none;
+	}
+
+	.deal-anim.deal-animating {
+		transform: translate(var(--deal-tx), var(--deal-ty));
+		transition: transform 150ms ease-out;
+	}
+
+	/* Suit completion animation */
+	.suit-anim {
+		position: fixed;
+		pointer-events: none;
+		z-index: 999;
+		width: var(--card-w, 60px);
+		transform: translate(0, 0) scale(1);
+		opacity: 1;
+		transition: none;
+	}
+
+	.suit-anim.animating {
+		transform: translate(var(--suit-tx), var(--suit-ty)) scale(0.2);
+		opacity: 0;
+		transition: transform 500ms ease-in-out, opacity 400ms ease-in 100ms;
 	}
 
 	.controls {

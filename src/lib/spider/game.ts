@@ -51,7 +51,7 @@ export function newGame(): GameState {
 	};
 }
 
-export function dealFromStock(state: GameState): GameState {
+export function dealFromStock(state: GameState, skipRunCheck = false): GameState {
 	const newState: GameState = JSON.parse(JSON.stringify(state));
 	newState.selected = null;
 
@@ -69,7 +69,9 @@ export function dealFromStock(state: GameState): GameState {
 		newState.tableau[col].push(card);
 	}
 
-	checkAndRemoveCompletedRuns(newState);
+	if (!skipRunCheck) {
+		checkAndRemoveCompletedRuns(newState);
+	}
 	return newState;
 }
 
@@ -185,7 +187,8 @@ export function executeMove(
 	state: GameState,
 	sourceIndex: number,
 	sourceCardIndex: number,
-	destIndex: number
+	destIndex: number,
+	skipRunCheck = false
 ): GameState | null {
 	const newState: GameState = JSON.parse(JSON.stringify(state));
 	if (newState.won) return null;
@@ -206,6 +209,34 @@ export function executeMove(
 	newState.moves++;
 	newState.selected = null;
 	flipTopCards(newState);
+	if (!skipRunCheck) {
+		checkAndRemoveCompletedRuns(newState);
+	}
+	return newState;
+}
+
+export function findCompletedRun(
+	state: GameState
+): { colIndex: number; runStart: number; cards: SpiderCard[] } | null {
+	for (let col = 0; col < 10; col++) {
+		const pile = state.tableau[col];
+		if (pile.length < 13) continue;
+		const runStart = pile.length - 13;
+		const run = pile.slice(runStart);
+		if (
+			run[0].rank === 13 &&
+			run[12].rank === 1 &&
+			run.every((c) => c.faceUp && c.suit === run[0].suit) &&
+			validDescendingRun(run)
+		) {
+			return { colIndex: col, runStart, cards: run };
+		}
+	}
+	return null;
+}
+
+export function applyCompletedRunRemoval(state: GameState): GameState {
+	const newState: GameState = JSON.parse(JSON.stringify(state));
 	checkAndRemoveCompletedRuns(newState);
 	return newState;
 }

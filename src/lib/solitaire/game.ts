@@ -255,7 +255,6 @@ export function handleClick(
 			if (moved) {
 				newState.moves++;
 				flipTopCards(newState);
-				autoFoundation(newState);
 			}
 			return newState;
 		}
@@ -265,7 +264,6 @@ export function handleClick(
 		if (result) {
 			newState.moves++;
 			flipTopCards(newState);
-			autoFoundation(newState);
 		}
 		return newState;
 	}
@@ -371,7 +369,6 @@ export function executeMove(
 
 	newState.moves++;
 	flipTopCards(newState);
-	autoFoundation(newState);
 	return newState;
 }
 
@@ -421,6 +418,45 @@ export function autoMoveFrom(
 				const result = executeMove(state, source, { type: 'tableau', index: i });
 				if (result) return result;
 			}
+		}
+	}
+
+	return null;
+}
+
+export function autoFoundationStep(state: GameState): {
+	newState: GameState;
+	source: 'tableau' | 'waste';
+	sourceIndex: number;
+	card: SolitaireCard;
+	fi: number;
+} | null {
+	const newState: GameState = JSON.parse(JSON.stringify(state));
+
+	for (let col = 0; col < 7; col++) {
+		const pile = newState.tableau[col];
+		if (pile.length === 0) continue;
+		const card = pile[pile.length - 1];
+		if (card.faceUp && canAutoFoundation(newState, card)) {
+			const fi = foundationIndex(newState, card.suit);
+			const moved = pile.pop()!;
+			newState.foundations[fi].push(moved);
+			flipTopCards(newState);
+			const total = newState.foundations.reduce((s, f) => s + f.length, 0);
+			if (total === 52) newState.won = true;
+			return { newState, source: 'tableau', sourceIndex: col, card: moved, fi };
+		}
+	}
+
+	if (newState.waste.length > 0) {
+		const card = newState.waste[newState.waste.length - 1];
+		if (canAutoFoundation(newState, card)) {
+			const fi = foundationIndex(newState, card.suit);
+			const moved = newState.waste.pop()!;
+			newState.foundations[fi].push(moved);
+			const total = newState.foundations.reduce((s, f) => s + f.length, 0);
+			if (total === 52) newState.won = true;
+			return { newState, source: 'waste', sourceIndex: 0, card: moved, fi };
 		}
 	}
 

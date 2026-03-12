@@ -6,6 +6,7 @@
 		newGame,
 		drawCard,
 		executeMove,
+		autoFoundationStep,
 		validDescendingRun,
 		canPlaceOnTableau,
 		canPlaceOnFoundation
@@ -113,7 +114,8 @@
 		from: { x: number; y: number },
 		to: { x: number; y: number },
 		source: typeof animSource,
-		newState: GameState
+		newState: GameState,
+		onComplete?: () => void
 	) {
 		pendingMoveState = newState;
 		animSource = source;
@@ -123,12 +125,41 @@
 			if (moveAnim) moveAnim.started = true;
 			setTimeout(() => {
 				if (pendingMoveState) {
-					pushHistory();
+					if (!onComplete) pushHistory();
 					game = pendingMoveState;
 					pendingMoveState = null;
 				}
 				moveAnim = null;
 				animSource = null;
+				if (onComplete) onComplete();
+			}, MOVE_ANIM_MS);
+		});
+	}
+
+	function chainAutoFoundation() {
+		const step = autoFoundationStep(game);
+		if (!step) return;
+
+		const ci = step.source === 'tableau' ? game.tableau[step.sourceIndex].length - 1 : undefined;
+		const from = getSourcePos(step.source, step.sourceIndex, ci);
+		const to = getDestPos('foundation', step.fi);
+
+		if (!from || !to) {
+			game = step.newState;
+			chainAutoFoundation();
+			return;
+		}
+
+		animSource = { type: step.source, index: step.sourceIndex, cardIndex: ci };
+		moveAnim = { cards: [step.card], fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
+
+		requestAnimationFrame(() => {
+			if (moveAnim) moveAnim.started = true;
+			setTimeout(() => {
+				game = step.newState;
+				moveAnim = null;
+				animSource = null;
+				chainAutoFoundation();
 			}, MOVE_ANIM_MS);
 		});
 	}
@@ -215,10 +246,11 @@
 		if (!from || !to) {
 			pushHistory();
 			game = result;
+			chainAutoFoundation();
 			return;
 		}
 
-		animateMove(found.cards, from, to, { type: sourceType, index, cardIndex: ci }, result);
+		animateMove(found.cards, from, to, { type: sourceType, index, cardIndex: ci }, result, chainAutoFoundation);
 	}
 
 	function startTimer() {
@@ -456,6 +488,9 @@
 			if (result) {
 				pushHistory();
 				game = result;
+				drag = null;
+				chainAutoFoundation();
+				return;
 			}
 		}
 
