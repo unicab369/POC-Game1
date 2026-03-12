@@ -124,11 +124,6 @@
 		box-shadow: inset 0 0 0 1px var(--su-same-border);
 	}
 
-	.cell.conflict .value,
-	.cell.incorrect .value {
-		color: var(--su-error-color);
-	}
-
 	.cell.given {
 		font-weight: 800;
 	}
@@ -142,11 +137,11 @@
 	}
 
 	.cell.solved {
-		box-shadow: inset 0 0 0 1.5px var(--su-solved-border);
+		box-shadow: inset 0 0 0 1.5px var(--su-solved-border, rgba(255,255,255,0.15));
 	}
 
 	.cell .value.solved {
-		color: var(--su-solved-color);
+		color: var(--su-solved-color, rgba(255,255,255,0.4));
 	}
 
 	.cell.just-solved .value {

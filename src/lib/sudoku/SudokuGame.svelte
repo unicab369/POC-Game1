@@ -25,10 +25,6 @@
 			name: 'Ocean',
 			preview: '#5090ff',
 			vars: {
-				'--su-cell-bg': 'rgba(255,255,255,0.04)',
-				'--su-cell-border': 'rgba(255,255,255,0.1)',
-				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
-				'--su-hover-bg': 'rgba(255,255,255,0.1)',
 				'--su-highlight-bg': 'rgba(80,144,255,0.1)',
 				'--su-same-bg': 'rgba(80,144,255,0.32)',
 				'--su-same-border': 'rgba(80,144,255,0.55)',
@@ -39,8 +35,6 @@
 				'--su-notes-selected-border': 'rgba(100,180,255,0.7)',
 				'--su-notes-highlight-bg': 'rgba(100,180,255,0.12)',
 				'--su-user-color': '#6cc8ff',
-				'--su-solved-color': 'rgba(255,255,255,0.4)',
-				'--su-solved-border': 'rgba(255,255,255,0.15)',
 				'--su-error-color': '#ff5070'
 			}
 		},
@@ -48,10 +42,6 @@
 			name: 'Amber',
 			preview: '#ffa030',
 			vars: {
-				'--su-cell-bg': 'rgba(255,255,255,0.04)',
-				'--su-cell-border': 'rgba(255,255,255,0.1)',
-				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
-				'--su-hover-bg': 'rgba(255,255,255,0.1)',
 				'--su-highlight-bg': 'rgba(255,160,48,0.09)',
 				'--su-same-bg': 'rgba(255,160,48,0.32)',
 				'--su-same-border': 'rgba(255,160,48,0.55)',
@@ -62,8 +52,6 @@
 				'--su-notes-selected-border': 'rgba(255,200,80,0.65)',
 				'--su-notes-highlight-bg': 'rgba(255,200,80,0.1)',
 				'--su-user-color': '#ffd060',
-				'--su-solved-color': 'rgba(255,255,255,0.4)',
-				'--su-solved-border': 'rgba(255,255,255,0.15)',
 				'--su-error-color': '#ff5070'
 			}
 		},
@@ -71,10 +59,6 @@
 			name: 'Emerald',
 			preview: '#30d888',
 			vars: {
-				'--su-cell-bg': 'rgba(255,255,255,0.04)',
-				'--su-cell-border': 'rgba(255,255,255,0.1)',
-				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
-				'--su-hover-bg': 'rgba(255,255,255,0.1)',
 				'--su-highlight-bg': 'rgba(48,216,136,0.09)',
 				'--su-same-bg': 'rgba(48,216,136,0.3)',
 				'--su-same-border': 'rgba(48,216,136,0.5)',
@@ -85,8 +69,6 @@
 				'--su-notes-selected-border': 'rgba(80,230,170,0.65)',
 				'--su-notes-highlight-bg': 'rgba(80,230,170,0.1)',
 				'--su-user-color': '#60f0b8',
-				'--su-solved-color': 'rgba(255,255,255,0.4)',
-				'--su-solved-border': 'rgba(255,255,255,0.15)',
 				'--su-error-color': '#ff5070'
 			}
 		},
@@ -94,10 +76,6 @@
 			name: 'Rose',
 			preview: '#ff6090',
 			vars: {
-				'--su-cell-bg': 'rgba(255,255,255,0.04)',
-				'--su-cell-border': 'rgba(255,255,255,0.1)',
-				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
-				'--su-hover-bg': 'rgba(255,255,255,0.1)',
 				'--su-highlight-bg': 'rgba(255,96,144,0.09)',
 				'--su-same-bg': 'rgba(255,96,144,0.3)',
 				'--su-same-border': 'rgba(255,96,144,0.5)',
@@ -108,8 +86,6 @@
 				'--su-notes-selected-border': 'rgba(255,140,180,0.65)',
 				'--su-notes-highlight-bg': 'rgba(255,140,180,0.1)',
 				'--su-user-color': '#ffb0c8',
-				'--su-solved-color': 'rgba(255,255,255,0.4)',
-				'--su-solved-border': 'rgba(255,255,255,0.15)',
 				'--su-error-color': '#e03030'
 			}
 		},
@@ -117,10 +93,6 @@
 			name: 'Violet',
 			preview: '#a060ff',
 			vars: {
-				'--su-cell-bg': 'rgba(255,255,255,0.04)',
-				'--su-cell-border': 'rgba(255,255,255,0.1)',
-				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
-				'--su-hover-bg': 'rgba(255,255,255,0.1)',
 				'--su-highlight-bg': 'rgba(160,96,255,0.09)',
 				'--su-same-bg': 'rgba(160,96,255,0.32)',
 				'--su-same-border': 'rgba(160,96,255,0.5)',
@@ -131,8 +103,6 @@
 				'--su-notes-selected-border': 'rgba(190,150,255,0.65)',
 				'--su-notes-highlight-bg': 'rgba(190,150,255,0.1)',
 				'--su-user-color': '#c8a8ff',
-				'--su-solved-color': 'rgba(255,255,255,0.4)',
-				'--su-solved-border': 'rgba(255,255,255,0.15)',
 				'--su-error-color': '#ff5070'
 			}
 		}
@@ -287,20 +257,6 @@
 		game = handleErase(game);
 	}
 
-	function onToggleNotes() {
-		game = toggleNotesMode(game);
-	}
-
-	function onToggleErrors() {
-		game = toggleShowErrors(game);
-	}
-
-	// Highlighting helpers
-	function isSameRegion(r1: number, c1: number, r2: number, c2: number): boolean {
-		if (r1 === r2) return true;
-		if (c1 === c2) return true;
-		return false;
-	}
 
 	// Track the last non-zero number selected for persistent highlighting
 	let highlightedNumber = $state(0);
@@ -418,7 +374,7 @@
 
 		// N for notes toggle
 		if (e.key === 'n' || e.key === 'N') {
-			onToggleNotes();
+			game = toggleNotesMode(game);
 			return;
 		}
 	}
@@ -490,7 +446,7 @@
 						isSelected={game.selected?.row === r && game.selected?.col === c}
 						isHighlightedRegion={game.selected !== null &&
 							!(game.selected.row === r && game.selected.col === c) &&
-							isSameRegion(game.selected.row, game.selected.col, r, c)}
+							(game.selected.row === r || game.selected.col === c)}
 						isSameNumber={highlightedNumber !== 0 &&
 							!(game.selected?.row === r && game.selected?.col === c) &&
 							cell.value === highlightedNumber}
@@ -535,7 +491,7 @@
 		<button
 			class="action-btn"
 			class:notes-active={game.notesMode}
-			onclick={onToggleNotes}
+			onclick={() => { game = toggleNotesMode(game); }}
 			disabled={game.won || (game.selected !== null && game.grid[game.selected.row][game.selected.col].value !== 0)}
 		>
 			Notes
@@ -543,7 +499,7 @@
 		<button
 			class="action-btn"
 			class:errors-active={game.showErrors}
-			onclick={onToggleErrors}
+			onclick={() => { game = toggleShowErrors(game); }}
 		>
 			Errors
 		</button>
