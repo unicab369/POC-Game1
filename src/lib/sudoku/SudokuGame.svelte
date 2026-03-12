@@ -29,7 +29,7 @@
 				'--su-cell-border': 'rgba(255,255,255,0.1)',
 				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
 				'--su-hover-bg': 'rgba(255,255,255,0.1)',
-				'--su-highlight-bg': 'rgba(80,144,255,0.22)',
+				'--su-highlight-bg': 'rgba(80,144,255,0.1)',
 				'--su-same-bg': 'rgba(80,144,255,0.32)',
 				'--su-same-border': 'rgba(80,144,255,0.55)',
 				'--su-same-glow': 'rgba(80,144,255,0.6)',
@@ -52,7 +52,7 @@
 				'--su-cell-border': 'rgba(255,255,255,0.1)',
 				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
 				'--su-hover-bg': 'rgba(255,255,255,0.1)',
-				'--su-highlight-bg': 'rgba(255,160,48,0.2)',
+				'--su-highlight-bg': 'rgba(255,160,48,0.09)',
 				'--su-same-bg': 'rgba(255,160,48,0.32)',
 				'--su-same-border': 'rgba(255,160,48,0.55)',
 				'--su-same-glow': 'rgba(255,160,48,0.6)',
@@ -75,7 +75,7 @@
 				'--su-cell-border': 'rgba(255,255,255,0.1)',
 				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
 				'--su-hover-bg': 'rgba(255,255,255,0.1)',
-				'--su-highlight-bg': 'rgba(48,216,136,0.2)',
+				'--su-highlight-bg': 'rgba(48,216,136,0.09)',
 				'--su-same-bg': 'rgba(48,216,136,0.3)',
 				'--su-same-border': 'rgba(48,216,136,0.5)',
 				'--su-same-glow': 'rgba(48,216,136,0.6)',
@@ -98,7 +98,7 @@
 				'--su-cell-border': 'rgba(255,255,255,0.1)',
 				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
 				'--su-hover-bg': 'rgba(255,255,255,0.1)',
-				'--su-highlight-bg': 'rgba(255,96,144,0.2)',
+				'--su-highlight-bg': 'rgba(255,96,144,0.09)',
 				'--su-same-bg': 'rgba(255,96,144,0.3)',
 				'--su-same-border': 'rgba(255,96,144,0.5)',
 				'--su-same-glow': 'rgba(255,96,144,0.6)',
@@ -121,7 +121,7 @@
 				'--su-cell-border': 'rgba(255,255,255,0.1)',
 				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
 				'--su-hover-bg': 'rgba(255,255,255,0.1)',
-				'--su-highlight-bg': 'rgba(160,96,255,0.2)',
+				'--su-highlight-bg': 'rgba(160,96,255,0.09)',
 				'--su-same-bg': 'rgba(160,96,255,0.32)',
 				'--su-same-border': 'rgba(160,96,255,0.5)',
 				'--su-same-glow': 'rgba(160,96,255,0.6)',
@@ -193,7 +193,11 @@
 
 	function onUndo() {
 		if (history.length === 0) return;
+		const { selected, notesMode, showErrors } = game;
 		game = history[history.length - 1];
+		game.selected = selected;
+		game.notesMode = notesMode;
+		game.showErrors = showErrors;
 		history = history.slice(0, -1);
 	}
 
@@ -226,8 +230,27 @@
 		game = selectCell(game, row, col);
 	}
 
+	function selectFirstCellWithNumber(num: number) {
+		for (let r = 0; r < 9; r++) {
+			for (let c = 0; c < 9; c++) {
+				if (game.grid[r][c].value === num) {
+					game = selectCell(game, r, c);
+					highlightedNumber = num;
+					return;
+				}
+			}
+		}
+	}
+
 	function onNumberPad(num: number) {
-		if (game.won || !game.selected) return;
+		if (game.won) return;
+
+		// If no cell selected, or selected cell has a value, switch highlight
+		if (!game.selected || game.grid[game.selected.row][game.selected.col].value !== 0) {
+			selectFirstCellWithNumber(num);
+			return;
+		}
+
 		pushHistory();
 		game = handleNumberInput(game, num);
 	}
@@ -235,7 +258,8 @@
 	const canErase = $derived.by(() => {
 		if (game.won || !game.selected) return false;
 		const cell = game.grid[game.selected.row][game.selected.col];
-		return cell.value === 0 && cell.notes.length > 0;
+		if (cell.given) return false;
+		return cell.value !== 0 || cell.notes.length > 0;
 	});
 
 	function showEraseError(msg: string) {
@@ -255,12 +279,8 @@
 			showEraseError('Cannot erase a given number');
 			return;
 		}
-		if (cell.value !== 0) {
-			showEraseError('Use number pad to change value');
-			return;
-		}
-		if (cell.notes.length === 0) {
-			showEraseError('No notes to erase');
+		if (cell.value === 0 && cell.notes.length === 0) {
+			showEraseError('Nothing to erase');
 			return;
 		}
 		pushHistory();
@@ -306,6 +326,21 @@
 			if (counts[n] >= 9) set.add(n);
 		}
 		return set;
+	});
+
+	// Track newly solved numbers for animation
+	let justSolvedNumber = $state(0);
+	let prevCompleted = new Set<number>();
+
+	$effect(() => {
+		const current = completedNumbers;
+		for (const n of current) {
+			if (!prevCompleted.has(n)) {
+				justSolvedNumber = n;
+				setTimeout(() => { justSolvedNumber = 0; }, 600);
+			}
+		}
+		prevCompleted = new Set(current);
 	});
 
 	// New game / Reset / Play menu
@@ -410,15 +445,19 @@
 	}
 
 	const difficultyLabel: Record<Difficulty, string> = {
+		flash: 'Flash',
 		easy: 'Easy',
 		medium: 'Medium',
-		hard: 'Hard'
+		hard: 'Hard',
+		evil: 'Evil'
 	};
 
 	const difficultyColor: Record<Difficulty, string> = {
+		flash: '#5be0f7',
 		easy: '#2ecc71',
 		medium: '#f39c12',
-		hard: '#e94560'
+		hard: '#e94560',
+		evil: '#a040e0'
 	};
 </script>
 
@@ -460,6 +499,8 @@
 						{completedNumbers}
 						dimNotes={game.selected !== null && game.grid[game.selected.row][game.selected.col].value !== 0}
 						notesMode={game.notesMode}
+						justSolved={justSolvedNumber !== 0 && cell.value === justSolvedNumber}
+						won={game.won}
 						onclick={() => onCellClick(r, c)}
 					/>
 				{/each}
@@ -501,7 +542,7 @@
 		</button>
 		<button
 			class="action-btn"
-			class:active={game.showErrors}
+			class:errors-active={game.showErrors}
 			onclick={onToggleErrors}
 		>
 			Errors
@@ -565,9 +606,11 @@
 					</div>
 				{:else if pickingDifficulty}
 					<span class="confirm-label">Select Difficulty</span>
+					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('flash') : confirmAction(() => onNewGame('flash'))}>Flash</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('easy') : confirmAction(() => onNewGame('easy'))}>Easy</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('medium') : confirmAction(() => onNewGame('medium'))}>Medium</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('hard') : confirmAction(() => onNewGame('hard'))}>Hard</button>
+					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('evil') : confirmAction(() => onNewGame('evil'))}>Evil</button>
 					<button class="menu-item back-item" onclick={() => { pickingDifficulty = false; }}>Back</button>
 				{:else}
 					<button class="menu-item" onclick={() => { pickingDifficulty = true; }}><span class="menu-icon">&#9654;</span> New Game</button>
@@ -676,7 +719,7 @@
 		display: grid;
 		grid-template-columns: repeat(9, var(--cell-size, 42px));
 		grid-template-rows: repeat(9, var(--cell-size, 42px));
-		border: 2px solid rgba(255, 255, 255, 0.35);
+		border: 2px solid rgba(255, 255, 255, 0.7);
 	}
 
 	.number-pad {
@@ -760,10 +803,10 @@
 		to { opacity: 1; transform: translateY(0); }
 	}
 
-	.action-btn.active {
-		background: rgba(0, 200, 255, 0.15);
-		color: #5be0f7;
-		border-color: rgba(0, 200, 255, 0.3);
+	.action-btn.errors-active {
+		background: rgba(233, 69, 96, 0.15);
+		color: #e94560;
+		border-color: rgba(233, 69, 96, 0.3);
 	}
 
 	.action-btn.notes-active {

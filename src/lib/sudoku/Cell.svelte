@@ -13,6 +13,8 @@
 		completedNumbers: Set<number>;
 		dimNotes: boolean;
 		notesMode?: boolean;
+		justSolved?: boolean;
+		won?: boolean;
 		onclick: () => void;
 	}
 
@@ -28,8 +30,12 @@
 		completedNumbers,
 		dimNotes,
 		notesMode = false,
+		justSolved = false,
+		won = false,
 		onclick
 	}: Props = $props();
+
+	const winDelay = $derived(`${(row + col) * 40}ms`);
 </script>
 
 <button
@@ -43,8 +49,11 @@
 	class:notes-mode={notesMode}
 	class:has-value={cell.value !== 0}
 	class:solved={cell.value !== 0 && completedNumbers.has(cell.value)}
+	class:just-solved={justSolved}
+	class:won
 	class:border-right={col === 2 || col === 5}
 	class:border-bottom={row === 2 || row === 5}
+	style:animation-delay={won ? winDelay : ''}
 	{onclick}
 >
 	{#if cell.value !== 0}
@@ -140,17 +149,49 @@
 		color: var(--su-solved-color);
 	}
 
+	.cell.just-solved .value {
+		animation: solve-pop 0.5s ease-out;
+	}
+
+	@keyframes solve-pop {
+		0% { transform: scale(1); opacity: 1; }
+		30% { transform: scale(1.35); opacity: 0.7; }
+		60% { transform: scale(0.9); }
+		100% { transform: scale(1); opacity: 1; }
+	}
+
+	.cell.won {
+		animation: win-wave 0.6s ease-in-out both;
+	}
+
+	.cell.won .value {
+		animation: win-glow 0.6s ease-in-out both;
+		animation-delay: inherit;
+	}
+
+	@keyframes win-wave {
+		0% { transform: scale(1); background: var(--su-cell-bg); }
+		40% { transform: scale(1.1); background: rgba(255, 215, 0, 0.3); }
+		100% { transform: scale(1); background: var(--su-cell-bg); }
+	}
+
+	@keyframes win-glow {
+		0% { color: var(--text-primary); text-shadow: none; }
+		40% { color: #ffd700; text-shadow: 0 0 12px rgba(255, 215, 0, 0.8); }
+		100% { color: var(--text-primary); text-shadow: none; }
+	}
+
 	.cell.conflict:not(.given) .value,
 	.cell.incorrect:not(.given) .value {
 		color: var(--su-error-color);
 	}
 
 	.cell.border-right {
-		border-right: 2px solid rgba(255, 255, 255, 0.35);
+		border-right: 2px solid rgba(255, 255, 255, 0.7);
 	}
 
 	.cell.border-bottom {
-		border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+		border-bottom: 2px solid rgba(255, 255, 255, 0.7);
 	}
 
 	.value {

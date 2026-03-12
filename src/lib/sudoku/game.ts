@@ -1,4 +1,4 @@
-export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Difficulty = 'flash' | 'easy' | 'medium' | 'hard' | 'evil';
 
 export interface Cell {
 	value: number; // 0 = empty
@@ -17,7 +17,7 @@ export interface GameState {
 	difficulty: Difficulty;
 }
 
-const GIVENS: Record<Difficulty, number> = { easy: 38, medium: 30, hard: 25 };
+const GIVENS: Record<Difficulty, number> = { flash: 45, easy: 38, medium: 30, hard: 25, evil: 20 };
 
 // --- Internal puzzle generation ---
 
