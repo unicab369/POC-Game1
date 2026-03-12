@@ -24,7 +24,8 @@ body {
 	font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 	background: var(--bg-primary);
 	color: var(--text-primary);
-	min-height: 100vh;
+	height: 100dvh;
+	overflow: hidden;
 }
 
 a {

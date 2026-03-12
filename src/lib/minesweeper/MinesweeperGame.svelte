@@ -281,7 +281,7 @@
 				{:else}
 					<button class="menu-item" onclick={() => { pickingDifficulty = true; }}><span class="menu-icon">&#9654;</span> New Game</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onReset() : confirmAction(onReset)}><span class="menu-icon">&#8634;</span> Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = base; })}><span class="menu-icon">&#10005;</span> Quit</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = base || '/'; })}><span class="menu-icon">&#10005;</span> Quit</button>
 					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
@@ -298,11 +298,12 @@
 		margin: 0 auto;
 		padding: 0.5rem;
 		padding-bottom: 4rem;
-		min-height: calc(100dvh - 3.5rem);
+		height: 100dvh;
 		display: flex;
 		flex-direction: column;
 		user-select: none;
 		-webkit-user-select: none;
+		overflow: hidden;
 	}
 
 	.game-content {
@@ -409,7 +410,7 @@
 		border-radius: var(--radius);
 		text-align: center;
 		box-shadow: var(--shadow);
-		border: 1.5px solid rgba(255, 255, 255, 0.3);
+		border: 1.5px solid rgba(255, 255, 255, 0.7);
 	}
 
 	.win-box h2 {
@@ -493,7 +494,7 @@
 		background: var(--bg-card);
 		border-radius: 12px;
 		box-shadow: var(--shadow);
-		border: 1.5px solid rgba(255, 255, 255, 0.3);
+		border: 1.5px solid rgba(255, 255, 255, 0.7);
 		overflow: hidden;
 		min-width: 220px;
 		z-index: 60;

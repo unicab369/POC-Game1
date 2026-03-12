@@ -679,10 +679,10 @@
 
 <!-- Controls -->
 <div class="controls">
-	<button class="btn btn-secondary" onclick={findHint} disabled={game.won}>Hint</button>
-	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}>Undo</button>
+	<button class="btn btn-secondary" onclick={findHint} disabled={game.won}><span class="btn-icon">💡</span> Hint</button>
+	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}><span class="btn-icon">&#8634;</span> Undo</button>
 	<div class="play-menu-wrapper">
-		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; }}>Play &#9662;</button>
+		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; }}><span class="btn-icon">&#9654;&#65039;</span> Play</button>
 		{#if showPlayMenu}
 			<div class="play-menu">
 				{#if pendingAction}
@@ -694,7 +694,7 @@
 				{:else}
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame() : confirmAction(onNewGame)}><span class="menu-icon">&#9654;</span> New Game</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onReset() : confirmAction(onReset)}><span class="menu-icon">&#8634;</span> Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = base; })}><span class="menu-icon">&#10005;</span> Quit</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = base || '/'; })}><span class="menu-icon">&#10005;</span> Quit</button>
 					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
@@ -961,6 +961,12 @@
 		text-decoration: none;
 		display: inline-flex;
 		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.btn-icon {
+		font-size: 1.1rem;
+		line-height: 1;
 	}
 
 	.btn:hover:not(:disabled) {
@@ -989,9 +995,10 @@
 		bottom: 50%;
 		left: 50%;
 		transform: translate(-50%, 50%);
-		background: var(--bg-secondary);
+		background: var(--bg-card);
 		border-radius: 12px;
-		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+		box-shadow: var(--shadow);
+		border: 1.5px solid rgba(255, 255, 255, 0.7);
 		overflow: hidden;
 		min-width: 220px;
 		z-index: 60;
@@ -1085,11 +1092,12 @@
 	}
 
 	.win-box {
-		background: var(--bg-secondary);
+		background: var(--bg-card);
 		padding: 3rem;
 		border-radius: var(--radius);
 		text-align: center;
 		box-shadow: var(--shadow);
+		border: 1.5px solid rgba(255, 255, 255, 0.7);
 	}
 
 	.win-box h2 {
