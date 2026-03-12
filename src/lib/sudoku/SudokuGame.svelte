@@ -21,6 +21,8 @@
 	let elapsed = $state(0);
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let pickingDifficulty = $state(false);
+	let eraseError = $state('');
+	let eraseErrorTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Timer
 	function startTimer() {
@@ -69,16 +71,23 @@
 		const now = Date.now();
 		const cell = game.grid[row][col];
 
-		// Double-tap on empty non-given cell → toggle notes mode
+		// Double-tap → toggle notes mode (enter on empty cell, exit on any cell)
 		if (lastCellTap && lastCellTap.row === row && lastCellTap.col === col &&
-			now - lastCellTap.time < DOUBLE_TAP_MS && cell.value === 0 && !cell.given) {
+			now - lastCellTap.time < DOUBLE_TAP_MS) {
 			lastCellTap = null;
-			if (!game.notesMode) game = toggleNotesMode(game);
+			if (game.notesMode) {
+				game = toggleNotesMode(game);
+			} else if (cell.value === 0 && !cell.given) {
+				game = toggleNotesMode(game);
+			}
 			game = selectCell(game, row, col);
 			return;
 		}
 
 		lastCellTap = { row, col, time: now };
+		if (game.notesMode && cell.value !== 0) {
+			game = toggleNotesMode(game);
+		}
 		game = selectCell(game, row, col);
 	}
 
@@ -88,8 +97,37 @@
 		game = handleNumberInput(game, num);
 	}
 
+	const canErase = $derived.by(() => {
+		if (game.won || !game.selected) return false;
+		const cell = game.grid[game.selected.row][game.selected.col];
+		return cell.value === 0 && cell.notes.length > 0;
+	});
+
+	function showEraseError(msg: string) {
+		if (eraseErrorTimer) clearTimeout(eraseErrorTimer);
+		eraseError = msg;
+		eraseErrorTimer = setTimeout(() => { eraseError = ''; }, 2000);
+	}
+
 	function onErase() {
-		if (game.won || !game.selected) return;
+		if (game.won) return;
+		if (!game.selected) {
+			showEraseError('Select a cell first');
+			return;
+		}
+		const cell = game.grid[game.selected.row][game.selected.col];
+		if (cell.given) {
+			showEraseError('Cannot erase a given number');
+			return;
+		}
+		if (cell.value !== 0) {
+			showEraseError('Use number pad to change value');
+			return;
+		}
+		if (cell.notes.length === 0) {
+			showEraseError('No notes to erase');
+			return;
+		}
 		pushHistory();
 		game = handleErase(game);
 	}
@@ -292,6 +330,7 @@
 	<div class="action-bar">
 		<button
 			class="action-btn"
+			class:disabled-look={!canErase}
 			onclick={onErase}
 			disabled={game.won}
 		>
@@ -299,7 +338,7 @@
 		</button>
 		<button
 			class="action-btn"
-			class:active={game.notesMode}
+			class:notes-active={game.notesMode}
 			onclick={onToggleNotes}
 			disabled={game.won || (game.selected !== null && game.grid[game.selected.row][game.selected.col].value !== 0)}
 		>
@@ -313,6 +352,10 @@
 			Errors
 		</button>
 	</div>
+
+	{#if eraseError}
+		<div class="erase-error">{eraseError}</div>
+	{/if}
 
 	<!-- Win overlay -->
 	{#if game.won}
@@ -507,7 +550,32 @@
 		cursor: default;
 	}
 
+	.action-btn.disabled-look {
+		opacity: 0.4;
+	}
+
+	.erase-error {
+		text-align: center;
+		color: #e94560;
+		font-size: 0.8rem;
+		font-weight: 600;
+		margin-top: -0.25rem;
+		margin-bottom: 0.25rem;
+		animation: fade-in 0.15s ease-out;
+	}
+
+	@keyframes fade-in {
+		from { opacity: 0; transform: translateY(-4px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
 	.action-btn.active {
+		background: rgba(0, 200, 255, 0.15);
+		color: #5be0f7;
+		border-color: rgba(0, 200, 255, 0.3);
+	}
+
+	.action-btn.notes-active {
 		background: rgba(0, 200, 255, 0.15);
 		color: #5be0f7;
 		border-color: rgba(0, 200, 255, 0.3);

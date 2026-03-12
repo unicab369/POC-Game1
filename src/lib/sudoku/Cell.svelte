@@ -41,6 +41,8 @@
 	class:conflict={hasConflict}
 	class:incorrect={isIncorrect}
 	class:notes-mode={notesMode}
+	class:has-value={cell.value !== 0}
+	class:solved={cell.value !== 0 && completedNumbers.has(cell.value)}
 	class:border-right={col === 2 || col === 5}
 	class:border-bottom={row === 2 || row === 5}
 	{onclick}
@@ -73,35 +75,44 @@
 		color: var(--text-primary);
 	}
 
+	.cell.has-value {
+		background: rgba(255, 255, 255, 0.13);
+	}
+
 	.cell:hover {
-		background: rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.12);
 	}
 
 	.cell.highlighted {
-		background: rgba(0, 200, 255, 0.08);
+		background: rgba(255, 210, 60, 0.12);
 	}
 
 	.cell.same-number {
-		background: rgba(0, 200, 255, 0.2);
-		box-shadow: inset 0 0 0 1px rgba(0, 229, 255, 0.35);
+		background: rgba(255, 210, 60, 0.28);
+		box-shadow: inset 0 0 0 1px rgba(255, 210, 60, 0.5);
 	}
 
 	.cell.same-number .value {
-		text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+		text-shadow: 0 0 8px rgba(255, 210, 60, 0.6);
 	}
 
 	.cell.selected {
+		background: rgba(255, 200, 60, 0.35);
+		box-shadow: inset 0 0 0 2px rgba(255, 210, 60, 0.85);
+	}
+
+	.cell.notes-mode.selected {
 		background: rgba(0, 200, 255, 0.25);
 		box-shadow: inset 0 0 0 2px rgba(0, 229, 255, 0.7);
 	}
 
-	.cell.notes-mode.selected {
-		background: rgba(255, 160, 40, 0.25);
-		box-shadow: inset 0 0 0 2px rgba(255, 160, 40, 0.7);
+	.cell.notes-mode.highlighted {
+		background: rgba(0, 200, 255, 0.1);
 	}
 
-	.cell.notes-mode.highlighted {
-		background: rgba(255, 160, 40, 0.08);
+	.cell.notes-mode.same-number {
+		background: rgba(255, 210, 60, 0.28);
+		box-shadow: inset 0 0 0 1px rgba(255, 210, 60, 0.5);
 	}
 
 	.cell.conflict .value,
@@ -118,11 +129,15 @@
 	}
 
 	.cell:not(.given) .value {
-		color: #5be0f7;
+		color: var(--text-primary);
+	}
+
+	.cell.solved {
+		box-shadow: inset 0 0 0 1.5px rgba(243, 156, 18, 0.5);
 	}
 
 	.cell .value.solved {
-		color: #2ecc71;
+		color: #f39c12;
 	}
 
 	.cell.conflict:not(.given) .value,
