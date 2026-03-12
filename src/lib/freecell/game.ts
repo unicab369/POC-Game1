@@ -34,7 +34,6 @@ export function newGame(): GameState {
 		moves: 0
 	};
 
-	autoFoundation(state);
 	return state;
 }
 

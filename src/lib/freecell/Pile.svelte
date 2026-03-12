@@ -11,6 +11,7 @@
 		isDropTarget?: boolean;
 		dragSourceIndex?: number | null;
 		dragCardIndex?: number | null;
+		shakeCardIndex?: number | null;
 	}
 
 	let {
@@ -21,7 +22,8 @@
 		onDragStart,
 		isDropTarget = false,
 		dragSourceIndex = null,
-		dragCardIndex = null
+		dragCardIndex = null,
+		shakeCardIndex = null
 	}: Props = $props();
 
 	function isSelected(cardIdx: number): boolean {
@@ -52,6 +54,7 @@
 			<div
 				class="card-wrapper"
 				class:drag-source={isDragSource(i)}
+				class:shake={shakeCardIndex !== null && i >= shakeCardIndex}
 				style="top: calc({i} * var(--card-compact-h, 28px))"
 			>
 				<CardComponent
@@ -89,6 +92,18 @@
 
 	.card-wrapper.drag-source {
 		opacity: 0.3;
+	}
+
+	.card-wrapper.shake {
+		animation: shake 0.35s ease-out;
+	}
+
+	@keyframes shake {
+		0%, 100% { transform: translateX(0); }
+		20% { transform: translateX(-5px); }
+		40% { transform: translateX(5px); }
+		60% { transform: translateX(-3px); }
+		80% { transform: translateX(3px); }
 	}
 
 	.empty-slot {

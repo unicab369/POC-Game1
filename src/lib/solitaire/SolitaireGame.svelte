@@ -41,6 +41,13 @@
 
 	let lastDrawnId: string | null = $state(null);
 
+	let shakeTarget: { type: 'tableau' | 'waste'; index: number; cardIndex?: number } | null = $state(null);
+
+	function triggerShake(type: 'tableau' | 'waste', index: number, cardIndex?: number) {
+		shakeTarget = { type, index, cardIndex };
+		setTimeout(() => { shakeTarget = null; }, 400);
+	}
+
 	function handleDoubleTap(
 		sourceType: 'tableau' | 'waste',
 		index: number,
@@ -63,6 +70,8 @@
 			if (result) {
 				pushHistory();
 				game = result;
+			} else {
+				triggerShake(sourceType, index, cardIndex);
 			}
 			return true;
 		}
@@ -410,6 +419,7 @@
 						<div
 							class="waste-card"
 							class:waste-card-enter={card.id === lastDrawnId}
+							class:shake={isTop && shakeTarget?.type === 'waste'}
 							style="left: calc({i} * var(--waste-fan-offset, 20px)); --slide-from: calc(var(--card-w) + var(--card-gap) + {2 - i} * var(--waste-fan-offset))"
 							onanimationend={() => { if (card.id === lastDrawnId) lastDrawnId = null; }}
 						>
@@ -453,6 +463,7 @@
 				isDropTarget={dropTargets.has(`tableau-${i}`)}
 				dragSourceIndex={drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null}
 				dragCardIndex={drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null}
+				shakeCardIndex={shakeTarget?.type === 'tableau' && shakeTarget.index === i ? (shakeTarget.cardIndex ?? game.tableau[i].length - 1) : null}
 			/>
 		{/each}
 	</div>
@@ -657,6 +668,18 @@
 	.waste-card {
 		position: absolute;
 		top: 0;
+	}
+
+	.waste-card.shake {
+		animation: shake 0.35s ease-out;
+	}
+
+	@keyframes shake {
+		0%, 100% { transform: translateX(0); }
+		20% { transform: translateX(-5px); }
+		40% { transform: translateX(5px); }
+		60% { transform: translateX(-3px); }
+		80% { transform: translateX(3px); }
 	}
 
 	/* Draw slide-in animation */

@@ -53,6 +53,13 @@
 	let animCardIndex: number | null = $state(null);
 	const MOVE_ANIM_MS = 200;
 
+	let shakeTarget: { col: number; cardIndex: number } | null = $state(null);
+
+	function triggerShake(col: number, cardIndex: number) {
+		shakeTarget = { col, cardIndex };
+		setTimeout(() => { shakeTarget = null; }, 400);
+	}
+
 	function getCompactHeight(): number {
 		const piles = document.querySelectorAll('[data-drop="tableau"]');
 		for (const pile of piles) {
@@ -170,7 +177,7 @@
 			}
 
 			const found = findAutoTarget(sourceIndex, cardIndex);
-			if (!found) return true;
+			if (!found) { triggerShake(sourceIndex, cardIndex); return true; }
 
 			const result = executeMove(game, sourceIndex, cardIndex, found.destIndex);
 			if (!result) return true;
@@ -445,6 +452,7 @@
 				isDropTarget={dropTargets.has(i)}
 				dragSourceIndex={(drag?.isDragging ? drag.sourceIndex : null) ?? animSourceIndex}
 				dragCardIndex={(drag?.isDragging && drag.sourceIndex === i ? drag.cardIndex : null) ?? (animSourceIndex === i ? animCardIndex : null)}
+				shakeCardIndex={shakeTarget?.col === i ? shakeTarget.cardIndex : null}
 			/>
 		{/each}
 	</div>

@@ -52,6 +52,13 @@
 	let animSource: { type: 'tableau' | 'freecell'; index: number; cardIndex?: number } | null = $state(null);
 	const MOVE_ANIM_MS = 200;
 
+	let shakeTarget: { type: 'tableau' | 'freecell'; index: number; cardIndex?: number } | null = $state(null);
+
+	function triggerShake(type: 'tableau' | 'freecell', index: number, cardIndex?: number) {
+		shakeTarget = { type, index, cardIndex };
+		setTimeout(() => { shakeTarget = null; }, 400);
+	}
+
 	function getCompactHeight(): number {
 		const piles = document.querySelectorAll('[data-drop="tableau"]');
 		for (const pile of piles) {
@@ -180,7 +187,7 @@
 			}
 
 			const found = findAutoTarget(sourceType, index, cardIndex);
-			if (!found) return true;
+			if (!found) { triggerShake(sourceType, index, cardIndex); return true; }
 
 			const result = executeMove(game, { type: sourceType, index, cardIndex }, found.target, true);
 			if (!result) return true;
@@ -549,6 +556,7 @@
 				<div
 					class="slot-wrapper"
 					class:drop-target={dropTargets.has(`freecell-${i}`)}
+					class:shake={shakeTarget?.type === 'freecell' && shakeTarget.index === i}
 					data-drop="freecell"
 					data-drop-index={i}
 				>
@@ -608,6 +616,7 @@
 				isDropTarget={dropTargets.has(`tableau-${i}`)}
 				dragSourceIndex={(drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null) ?? (animSource?.type === 'tableau' ? animSource.index : null)}
 				dragCardIndex={(drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null) ?? (animSource?.type === 'tableau' && animSource.index === i ? (animSource.cardIndex ?? null) : null)}
+				shakeCardIndex={shakeTarget?.type === 'tableau' && shakeTarget.index === i ? (shakeTarget.cardIndex ?? game.tableau[i].length - 1) : null}
 			/>
 		{/each}
 	</div>
@@ -780,6 +789,18 @@
 
 	.slot-wrapper.drop-target {
 		outline-color: rgba(0, 229, 255, 0.6);
+	}
+
+	.slot-wrapper.shake {
+		animation: shake 0.35s ease-out;
+	}
+
+	@keyframes shake {
+		0%, 100% { transform: translateX(0); }
+		20% { transform: translateX(-5px); }
+		40% { transform: translateX(5px); }
+		60% { transform: translateX(-3px); }
+		80% { transform: translateX(3px); }
 	}
 
 	.slot {
