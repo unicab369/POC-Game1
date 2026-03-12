@@ -65,59 +65,59 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: var(--su-cell-bg, rgba(255, 255, 255, 0.04));
+		border: 1px solid var(--su-cell-border, rgba(255, 255, 255, 0.1));
 		border-radius: 0;
 		padding: 0;
 		cursor: pointer;
 		position: relative;
-		transition: background 0.1s;
+		transition: background 0.15s, box-shadow 0.15s;
 		color: var(--text-primary);
 	}
 
 	.cell.has-value {
-		background: rgba(255, 255, 255, 0.13);
+		background: var(--su-has-value-bg, rgba(255, 255, 255, 0.06));
 	}
 
 	.cell:hover {
-		background: rgba(255, 255, 255, 0.12);
+		background: var(--su-hover-bg, rgba(255, 255, 255, 0.1));
 	}
 
 	.cell.highlighted {
-		background: rgba(255, 210, 60, 0.12);
+		background: var(--su-highlight-bg);
 	}
 
 	.cell.same-number {
-		background: rgba(255, 210, 60, 0.28);
-		box-shadow: inset 0 0 0 1px rgba(255, 210, 60, 0.5);
+		background: var(--su-same-bg);
+		box-shadow: inset 0 0 0 1px var(--su-same-border);
 	}
 
 	.cell.same-number .value {
-		text-shadow: 0 0 8px rgba(255, 210, 60, 0.6);
+		text-shadow: 0 0 6px var(--su-same-glow);
 	}
 
 	.cell.selected {
-		background: rgba(255, 200, 60, 0.35);
-		box-shadow: inset 0 0 0 2px rgba(255, 210, 60, 0.85);
+		background: var(--su-selected-bg);
+		box-shadow: inset 0 0 0 2px var(--su-selected-border);
 	}
 
 	.cell.notes-mode.selected {
-		background: rgba(0, 200, 255, 0.25);
-		box-shadow: inset 0 0 0 2px rgba(0, 229, 255, 0.7);
+		background: var(--su-notes-selected-bg);
+		box-shadow: inset 0 0 0 2px var(--su-notes-selected-border);
 	}
 
 	.cell.notes-mode.highlighted {
-		background: rgba(0, 200, 255, 0.1);
+		background: var(--su-notes-highlight-bg);
 	}
 
 	.cell.notes-mode.same-number {
-		background: rgba(255, 210, 60, 0.28);
-		box-shadow: inset 0 0 0 1px rgba(255, 210, 60, 0.5);
+		background: var(--su-same-bg);
+		box-shadow: inset 0 0 0 1px var(--su-same-border);
 	}
 
 	.cell.conflict .value,
 	.cell.incorrect .value {
-		color: #e94560;
+		color: var(--su-error-color);
 	}
 
 	.cell.given {
@@ -129,20 +129,20 @@
 	}
 
 	.cell:not(.given) .value {
-		color: var(--text-primary);
+		color: var(--su-user-color);
 	}
 
 	.cell.solved {
-		box-shadow: inset 0 0 0 1.5px rgba(243, 156, 18, 0.5);
+		box-shadow: inset 0 0 0 1.5px var(--su-solved-border);
 	}
 
 	.cell .value.solved {
-		color: #f39c12;
+		color: var(--su-solved-color);
 	}
 
 	.cell.conflict:not(.given) .value,
 	.cell.incorrect:not(.given) .value {
-		color: #e94560;
+		color: var(--su-error-color);
 	}
 
 	.cell.border-right {

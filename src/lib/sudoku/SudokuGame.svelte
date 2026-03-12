@@ -13,6 +13,141 @@
 	} from './game';
 	import type { GameState, Difficulty } from './game';
 
+	// Color schemes
+	interface ColorScheme {
+		name: string;
+		preview: string; // main accent color for swatch
+		vars: Record<string, string>;
+	}
+
+	const colorSchemes: ColorScheme[] = [
+		{
+			name: 'Ocean',
+			preview: '#5090ff',
+			vars: {
+				'--su-cell-bg': 'rgba(255,255,255,0.04)',
+				'--su-cell-border': 'rgba(255,255,255,0.1)',
+				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
+				'--su-hover-bg': 'rgba(255,255,255,0.1)',
+				'--su-highlight-bg': 'rgba(80,144,255,0.22)',
+				'--su-same-bg': 'rgba(80,144,255,0.32)',
+				'--su-same-border': 'rgba(80,144,255,0.55)',
+				'--su-same-glow': 'rgba(80,144,255,0.6)',
+				'--su-selected-bg': 'rgba(80,144,255,0.4)',
+				'--su-selected-border': 'rgba(90,160,255,0.9)',
+				'--su-notes-selected-bg': 'rgba(100,180,255,0.3)',
+				'--su-notes-selected-border': 'rgba(100,180,255,0.7)',
+				'--su-notes-highlight-bg': 'rgba(100,180,255,0.12)',
+				'--su-user-color': '#6cc8ff',
+				'--su-solved-color': 'rgba(255,255,255,0.4)',
+				'--su-solved-border': 'rgba(255,255,255,0.15)',
+				'--su-error-color': '#ff5070'
+			}
+		},
+		{
+			name: 'Amber',
+			preview: '#ffa030',
+			vars: {
+				'--su-cell-bg': 'rgba(255,255,255,0.04)',
+				'--su-cell-border': 'rgba(255,255,255,0.1)',
+				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
+				'--su-hover-bg': 'rgba(255,255,255,0.1)',
+				'--su-highlight-bg': 'rgba(255,160,48,0.2)',
+				'--su-same-bg': 'rgba(255,160,48,0.32)',
+				'--su-same-border': 'rgba(255,160,48,0.55)',
+				'--su-same-glow': 'rgba(255,160,48,0.6)',
+				'--su-selected-bg': 'rgba(255,160,48,0.38)',
+				'--su-selected-border': 'rgba(255,175,70,0.9)',
+				'--su-notes-selected-bg': 'rgba(255,200,80,0.28)',
+				'--su-notes-selected-border': 'rgba(255,200,80,0.65)',
+				'--su-notes-highlight-bg': 'rgba(255,200,80,0.1)',
+				'--su-user-color': '#ffd060',
+				'--su-solved-color': 'rgba(255,255,255,0.4)',
+				'--su-solved-border': 'rgba(255,255,255,0.15)',
+				'--su-error-color': '#ff5070'
+			}
+		},
+		{
+			name: 'Emerald',
+			preview: '#30d888',
+			vars: {
+				'--su-cell-bg': 'rgba(255,255,255,0.04)',
+				'--su-cell-border': 'rgba(255,255,255,0.1)',
+				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
+				'--su-hover-bg': 'rgba(255,255,255,0.1)',
+				'--su-highlight-bg': 'rgba(48,216,136,0.2)',
+				'--su-same-bg': 'rgba(48,216,136,0.3)',
+				'--su-same-border': 'rgba(48,216,136,0.5)',
+				'--su-same-glow': 'rgba(48,216,136,0.6)',
+				'--su-selected-bg': 'rgba(48,216,136,0.36)',
+				'--su-selected-border': 'rgba(60,230,150,0.85)',
+				'--su-notes-selected-bg': 'rgba(80,230,170,0.28)',
+				'--su-notes-selected-border': 'rgba(80,230,170,0.65)',
+				'--su-notes-highlight-bg': 'rgba(80,230,170,0.1)',
+				'--su-user-color': '#60f0b8',
+				'--su-solved-color': 'rgba(255,255,255,0.4)',
+				'--su-solved-border': 'rgba(255,255,255,0.15)',
+				'--su-error-color': '#ff5070'
+			}
+		},
+		{
+			name: 'Rose',
+			preview: '#ff6090',
+			vars: {
+				'--su-cell-bg': 'rgba(255,255,255,0.04)',
+				'--su-cell-border': 'rgba(255,255,255,0.1)',
+				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
+				'--su-hover-bg': 'rgba(255,255,255,0.1)',
+				'--su-highlight-bg': 'rgba(255,96,144,0.2)',
+				'--su-same-bg': 'rgba(255,96,144,0.3)',
+				'--su-same-border': 'rgba(255,96,144,0.5)',
+				'--su-same-glow': 'rgba(255,96,144,0.6)',
+				'--su-selected-bg': 'rgba(255,96,144,0.36)',
+				'--su-selected-border': 'rgba(255,120,160,0.85)',
+				'--su-notes-selected-bg': 'rgba(255,140,180,0.28)',
+				'--su-notes-selected-border': 'rgba(255,140,180,0.65)',
+				'--su-notes-highlight-bg': 'rgba(255,140,180,0.1)',
+				'--su-user-color': '#ffb0c8',
+				'--su-solved-color': 'rgba(255,255,255,0.4)',
+				'--su-solved-border': 'rgba(255,255,255,0.15)',
+				'--su-error-color': '#e03030'
+			}
+		},
+		{
+			name: 'Violet',
+			preview: '#a060ff',
+			vars: {
+				'--su-cell-bg': 'rgba(255,255,255,0.04)',
+				'--su-cell-border': 'rgba(255,255,255,0.1)',
+				'--su-has-value-bg': 'rgba(255,255,255,0.06)',
+				'--su-hover-bg': 'rgba(255,255,255,0.1)',
+				'--su-highlight-bg': 'rgba(160,96,255,0.2)',
+				'--su-same-bg': 'rgba(160,96,255,0.32)',
+				'--su-same-border': 'rgba(160,96,255,0.5)',
+				'--su-same-glow': 'rgba(160,96,255,0.6)',
+				'--su-selected-bg': 'rgba(160,96,255,0.38)',
+				'--su-selected-border': 'rgba(175,120,255,0.88)',
+				'--su-notes-selected-bg': 'rgba(190,150,255,0.28)',
+				'--su-notes-selected-border': 'rgba(190,150,255,0.65)',
+				'--su-notes-highlight-bg': 'rgba(190,150,255,0.1)',
+				'--su-user-color': '#c8a8ff',
+				'--su-solved-color': 'rgba(255,255,255,0.4)',
+				'--su-solved-border': 'rgba(255,255,255,0.15)',
+				'--su-error-color': '#ff5070'
+			}
+		}
+	];
+
+	let activeScheme = $state(0);
+	let showSettings = $state(false);
+
+	// Build inline style string from active scheme
+	const schemeStyle = $derived(
+		Object.entries(colorSchemes[activeScheme].vars)
+			.map(([k, v]) => `${k}:${v}`)
+			.join(';')
+	);
+
 	let game: GameState = $state(newGame('easy'));
 	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
 	let history: GameState[] = $state([]);
@@ -144,8 +279,6 @@
 	function isSameRegion(r1: number, c1: number, r2: number, c2: number): boolean {
 		if (r1 === r2) return true;
 		if (c1 === c2) return true;
-		if (Math.floor(r1 / 3) === Math.floor(r2 / 3) && Math.floor(c1 / 3) === Math.floor(c2 / 3))
-			return true;
 		return false;
 	}
 
@@ -255,6 +388,27 @@
 		}
 	}
 
+	// Auto-select a numbered cell for theme preview
+	function selectPreviewCell() {
+		// If already selecting a numbered cell, keep it
+		if (game.selected) {
+			const v = game.grid[game.selected.row][game.selected.col].value;
+			if (v !== 0) return;
+		}
+		// Find a non-given user-entered number first, then fall back to any numbered cell
+		for (const given of [false, true]) {
+			for (let r = 0; r < 9; r++) {
+				for (let c = 0; c < 9; c++) {
+					const cell = game.grid[r][c];
+					if (cell.value !== 0 && cell.given === given) {
+						game = selectCell(game, r, c);
+						return;
+					}
+				}
+			}
+		}
+	}
+
 	const difficultyLabel: Record<Difficulty, string> = {
 		easy: 'Easy',
 		medium: 'Medium',
@@ -270,7 +424,7 @@
 
 <svelte:window onkeydown={onKeyDown} />
 
-<div class="board" role="application" aria-label="Sudoku Game">
+<div class="board" role="application" aria-label="Sudoku Game" style={schemeStyle}>
 	<div class="header">
 		<h1 class="game-title"><span class="title-su">Su</span><span class="title-doku">doku</span></h1>
 		<div class="stats">
@@ -284,6 +438,7 @@
 		{difficultyLabel[game.difficulty]}
 	</div>
 
+	<div class="game-content">
 	<!-- 9x9 Grid -->
 	<div class="grid-wrapper">
 		<div class="grid">
@@ -357,6 +512,31 @@
 		<div class="erase-error">{eraseError}</div>
 	{/if}
 
+	<!-- Settings popup -->
+	{#if showSettings}
+		<div class="settings-backdrop" onclick={() => { showSettings = false; }}></div>
+		<div class="settings-popup">
+			<span class="settings-title">Theme</span>
+			<div class="scheme-list">
+				{#each colorSchemes as scheme, i}
+					<button
+						class="scheme-option"
+						class:active={activeScheme === i}
+						onclick={() => { activeScheme = i; }}
+					>
+						<span class="scheme-swatch" style="background: {scheme.preview}"></span>
+						<span class="scheme-name">{scheme.name}</span>
+						{#if activeScheme === i}
+							<span class="scheme-check">&#10003;</span>
+						{/if}
+					</button>
+				{/each}
+			</div>
+			<button class="settings-close-btn" onclick={() => { showSettings = false; }}>Close</button>
+		</div>
+	{/if}
+	</div>
+
 	<!-- Win overlay -->
 	{#if game.won}
 		<div class="win-overlay">
@@ -371,6 +551,7 @@
 
 <!-- Controls -->
 <div class="controls">
+	<button class="btn btn-secondary" onclick={() => { showSettings = !showSettings; if (showSettings) selectPreviewCell(); }}>&#9881;</button>
 	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}>Undo</button>
 	<div class="play-menu-wrapper">
 		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; pickingDifficulty = false; }}>Play &#9662;</button>
@@ -410,8 +591,18 @@
 		margin: 0 auto;
 		padding: 0.5rem;
 		padding-bottom: 4rem;
+		min-height: calc(100dvh - 3.5rem);
+		display: flex;
+		flex-direction: column;
 		user-select: none;
 		-webkit-user-select: none;
+	}
+
+	.game-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
 	}
 
 	.header {
@@ -755,6 +946,105 @@
 		color: var(--text-secondary);
 		font-size: 1.1rem;
 		margin-bottom: 1.5rem;
+	}
+
+	.settings-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+	}
+
+	.settings-popup {
+		position: fixed;
+		bottom: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--bg-secondary);
+		border-radius: 12px 12px 0 0;
+		box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.6);
+		padding: 1.25rem;
+		padding-bottom: 0;
+		min-width: 260px;
+		max-width: 340px;
+		width: 90%;
+		z-index: 60;
+	}
+
+	.settings-title {
+		display: block;
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		text-align: center;
+		margin-bottom: 0.75rem;
+	}
+
+	.settings-close-btn {
+		display: block;
+		width: 100%;
+		margin-top: 0.75rem;
+		padding: 0.7rem;
+		border: none;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.08);
+		color: var(--text-secondary);
+		font-size: 1rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.settings-close-btn:hover {
+		background: rgba(255, 255, 255, 0.14);
+		color: var(--text-primary);
+	}
+
+	.scheme-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.scheme-option {
+		display: flex;
+		align-items: center;
+		gap: 0.65rem;
+		padding: 0.55rem 0.65rem;
+		border: 1px solid transparent;
+		border-radius: 8px;
+		background: none;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+		width: 100%;
+		text-align: left;
+	}
+
+	.scheme-option:hover {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.scheme-option.active {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.15);
+	}
+
+	.scheme-swatch {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.scheme-name {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		flex: 1;
+	}
+
+	.scheme-check {
+		color: var(--text-secondary);
+		font-size: 0.85rem;
 	}
 
 	@media (max-width: 600px) {
