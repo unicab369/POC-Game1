@@ -39,6 +39,8 @@
 	let lastTap: { key: string; time: number } | null = null;
 	const DOUBLE_TAP_MS = 400;
 
+	let lastDrawnId: string | null = $state(null);
+
 	function handleDoubleTap(
 		sourceType: 'tableau' | 'waste',
 		index: number,
@@ -132,6 +134,15 @@
 	}
 
 	function onStockClick() {
+		if (game.stock.length === 0) {
+			if (game.waste.length > 0) {
+				pushHistory();
+				game = drawCard(game);
+			}
+			return;
+		}
+
+		lastDrawnId = game.stock[game.stock.length - 1].id;
 		pushHistory();
 		game = drawCard(game);
 	}
@@ -182,6 +193,7 @@
 	}
 
 	const foundationSuits = ['spades', 'hearts', 'diamonds', 'clubs'] as const;
+	const visibleWaste = $derived(game.waste.slice(-3));
 
 	// --- Drag and Drop ---
 
@@ -356,11 +368,13 @@
 />
 
 <div class="board" role="application" aria-label="Solitaire Game">
-	<h1 class="game-title">Solitaire</h1>
-	<div class="stats">
-		<span class="stat">{formatTime(elapsed)}</span>
-		<span class="stat-divider"></span>
-		<span class="stat">Moves: {game.moves}</span>
+	<div class="header">
+		<h1 class="game-title"><span class="title-sol">Soli</span><span class="title-taire">taire</span></h1>
+		<div class="stats">
+			<span class="stat">{formatTime(elapsed)}</span>
+			<span class="stat-divider"></span>
+			<span class="stat">Moves: {game.moves}</span>
+		</div>
 	</div>
 
 	<!-- Top Bar -->
@@ -387,30 +401,42 @@
 
 		<!-- Stock + Waste -->
 		<div class="cell-group">
-			<!-- Waste -->
-			<div class="slot-wrapper">
-				{#if game.waste.length > 0}
-					<CardComponent
-						card={game.waste[game.waste.length - 1]}
-						selected={game.selected?.source === 'waste'}
-						onclick={onWasteClick}
-						onpointerdown={(e: PointerEvent) => onWasteDragStart(e)}
-					/>
+			<!-- Waste (fanned, up to 3 visible) -->
+			<div class="waste-fan">
+				{#if visibleWaste.length > 0}
+					{#each visibleWaste as card, i (card.id)}
+						{@const isTop = i === visibleWaste.length - 1}
+						<div
+							class="waste-card"
+							class:waste-card-enter={card.id === lastDrawnId}
+							style="left: calc({i} * var(--waste-fan-offset, 20px)); --slide-from: calc(var(--card-w) + var(--card-gap) + {2 - i} * var(--waste-fan-offset))"
+							onanimationend={() => { if (card.id === lastDrawnId) lastDrawnId = null; }}
+						>
+							<CardComponent
+								{card}
+								selected={isTop && game.selected?.source === 'waste'}
+								onclick={isTop ? onWasteClick : undefined}
+								onpointerdown={isTop ? (e: PointerEvent) => onWasteDragStart(e) : undefined}
+							/>
+						</div>
+					{/each}
 					{#if drag?.isDragging && drag.source.type === 'waste'}
-						<div class="drag-source-overlay"></div>
+						<div class="drag-source-overlay" style="left: calc({(visibleWaste.length - 1)} * var(--waste-fan-offset, 20px))"></div>
 					{/if}
 				{:else}
 					<div class="slot"></div>
 				{/if}
 			</div>
 			<!-- Stock -->
-			{#if game.stock.length > 0}
-				<CardComponent card={game.stock[game.stock.length - 1]} faceDown={true} onclick={onStockClick} />
-			{:else}
-				<button class="slot stock" onclick={onStockClick}>
-					<span class="slot-label recycle">&#8635;</span>
-				</button>
-			{/if}
+			<div>
+				{#if game.stock.length > 0}
+					<CardComponent card={game.stock[game.stock.length - 1]} faceDown={true} onclick={onStockClick} />
+				{:else}
+					<button class="slot stock" onclick={onStockClick}>
+						<span class="slot-label recycle">&#8635;</span>
+					</button>
+				{/if}
+			</div>
 		</div>
 	</div>
 
@@ -487,6 +513,7 @@
 		--card-rank-fs: 28px;
 		--card-suit-fs: 24px;
 		--card-big-suit-fs: 48px;
+		--waste-fan-offset: 20px;
 
 		position: relative;
 		max-width: 700px;
@@ -517,23 +544,33 @@
 		background: rgba(255, 255, 255, 0.08);
 	}
 
+	.header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.5rem;
+	}
+
 	.game-title {
-		text-align: center;
-		font-size: 1.6rem;
+		font-size: 1.35rem;
 		font-weight: 800;
-		margin: 0.25rem 0 0.15rem;
-		color: var(--text-primary);
-		letter-spacing: 0.04em;
+		margin: 0;
+		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		opacity: 0.85;
+	}
+
+	.title-sol {
+		color: #2ecc71;
+	}
+
+	.title-taire {
+		color: #a8e6cf;
 	}
 
 	.stats {
 		display: flex;
-		justify-content: center;
-		gap: 1.5rem;
+		gap: 1rem;
 		align-items: center;
-		margin-bottom: 0.75rem;
 	}
 
 	.stat {
@@ -607,9 +644,37 @@
 		opacity: 0.3;
 	}
 
+	.waste-fan {
+		position: relative;
+		width: calc(var(--card-w, 70px) + 2 * var(--waste-fan-offset, 20px));
+		height: var(--card-h, 100px);
+		flex-shrink: 0;
+	}
+
+	.waste-card {
+		position: absolute;
+		top: 0;
+	}
+
+	/* Draw slide-in animation */
+	.waste-card-enter {
+		animation: waste-slide-in 0.2s ease-out;
+	}
+
+	@keyframes waste-slide-in {
+		from {
+			transform: translateX(var(--slide-from));
+		}
+		to {
+			transform: translateX(0);
+		}
+	}
+
 	.drag-source-overlay {
 		position: absolute;
-		inset: 0;
+		top: 0;
+		width: var(--card-w, 70px);
+		height: var(--card-h, 100px);
 		background: rgba(0, 0, 0, 0.5);
 		border-radius: 6px;
 		pointer-events: none;
@@ -793,6 +858,7 @@
 			--card-rank-fs: calc(var(--card-w) * 0.38);
 			--card-suit-fs: calc(var(--card-w) * 0.32);
 			--card-big-suit-fs: calc(var(--card-w) * 0.65);
+			--waste-fan-offset: calc(var(--card-w) * 0.28);
 
 			max-width: 100%;
 			padding: 0.5rem;

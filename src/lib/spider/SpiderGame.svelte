@@ -1,8 +1,31 @@
 <script lang="ts">
 	import { CardComponent } from '$lib/cards';
+	import type { SpiderCard } from './game';
 	import Pile from './Pile.svelte';
-	import { newGame, handleClick, dealFromStock, clearSelection } from './game';
+	import {
+		newGame,
+		handleClick,
+		dealFromStock,
+		clearSelection,
+		executeMove,
+		autoMoveFrom,
+		validDescendingRun,
+		canPlaceOnTableau
+	} from './game';
 	import type { GameState } from './game';
+
+	interface DragState {
+		isDragging: boolean;
+		sourceIndex: number;
+		cardIndex: number;
+		cards: SpiderCard[];
+		startX: number;
+		startY: number;
+		currentX: number;
+		currentY: number;
+		offsetX: number;
+		offsetY: number;
+	}
 
 	let game: GameState = $state(newGame());
 	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
@@ -11,6 +34,10 @@
 	let pendingAction: (() => void) | null = $state(null);
 	let elapsed = $state(0);
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
+	let drag: DragState | null = $state(null);
+	let suppressNextClick = $state(false);
+	let lastTap: { key: string; time: number } | null = null;
+	const DOUBLE_TAP_MS = 400;
 
 	function startTimer() {
 		stopTimer();
@@ -45,7 +72,40 @@
 		history = [...history, structuredClone($state.snapshot(game))];
 	}
 
+	function handleDoubleTap(
+		sourceIndex: number,
+		cardIndex: number
+	): boolean {
+		const now = Date.now();
+		const key = `tableau-${sourceIndex}-${cardIndex}`;
+
+		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
+			lastTap = null;
+
+			// Undo the selection that the first tap caused
+			if (history.length > 0) {
+				game = history[history.length - 1];
+				history = history.slice(0, -1);
+			}
+
+			const result = autoMoveFrom(game, sourceIndex, cardIndex);
+			if (result) {
+				pushHistory();
+				game = result;
+			}
+			return true;
+		}
+
+		lastTap = { key, time: now };
+		return false;
+	}
+
 	function onTableauClick(columnIndex: number, cardIndex: number) {
+		if (suppressNextClick) {
+			suppressNextClick = false;
+			return;
+		}
+		if (cardIndex >= 0 && handleDoubleTap(columnIndex, cardIndex)) return;
 		pushHistory();
 		if (cardIndex === -1) {
 			game = handleClick(game, 'tableau', columnIndex);
@@ -103,20 +163,139 @@
 			game = clearSelection(game);
 		}
 	}
+
+	// --- Drag and Drop ---
+
+	function onDragStart(columnIndex: number, cardIndex: number, e: PointerEvent) {
+		if (game.won) return;
+		if (e.button !== 0) return;
+
+		const col = game.tableau[columnIndex];
+		if (col.length === 0) return;
+		if (!col[cardIndex].faceUp) return;
+
+		const cards = col.slice(cardIndex);
+		if (!validDescendingRun(cards)) return;
+
+		const el = e.currentTarget as HTMLElement;
+		if (el.hasPointerCapture(e.pointerId)) {
+			el.releasePointerCapture(e.pointerId);
+		}
+		e.preventDefault();
+
+		const rect = el.getBoundingClientRect();
+
+		drag = {
+			isDragging: false,
+			sourceIndex: columnIndex,
+			cardIndex,
+			cards,
+			startX: e.clientX,
+			startY: e.clientY,
+			currentX: e.clientX,
+			currentY: e.clientY,
+			offsetX: e.clientX - rect.left,
+			offsetY: e.clientY - rect.top
+		};
+	}
+
+	function onPointerMove(e: PointerEvent) {
+		if (!drag) return;
+
+		const dx = e.clientX - drag.startX;
+		const dy = e.clientY - drag.startY;
+
+		if (!drag.isDragging) {
+			if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+				drag.isDragging = true;
+				if (game.selected) {
+					game = clearSelection(game);
+				}
+			} else {
+				return;
+			}
+		}
+
+		drag.currentX = e.clientX;
+		drag.currentY = e.clientY;
+	}
+
+	function findDropTarget(x: number, y: number): number | null {
+		const elements = document.elementsFromPoint(x, y);
+		for (const el of elements) {
+			const dropEl = (el as HTMLElement).closest('[data-drop]') as HTMLElement | null;
+			if (dropEl && dropEl.dataset.drop === 'tableau') {
+				return parseInt(dropEl.dataset.dropIndex ?? '0', 10);
+			}
+		}
+		return null;
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (!drag) return;
+
+		if (!drag.isDragging) {
+			drag = null;
+			return;
+		}
+
+		suppressNextClick = true;
+
+		const destIndex = findDropTarget(e.clientX, e.clientY);
+		if (destIndex !== null) {
+			const result = executeMove(game, drag.sourceIndex, drag.cardIndex, destIndex);
+			if (result) {
+				pushHistory();
+				game = result;
+			}
+		}
+
+		drag = null;
+	}
+
+	// Compute valid drop targets during drag
+	const dropTargets = $derived.by(() => {
+		if (!drag || !drag.isDragging) return new Set<number>();
+
+		const targets = new Set<number>();
+		const topCard = drag.cards[0];
+
+		for (let i = 0; i < 10; i++) {
+			if (i === drag.sourceIndex) continue;
+			if (canPlaceOnTableau(topCard, game.tableau[i])) {
+				targets.add(i);
+			}
+		}
+
+		return targets;
+	});
+
+	const overlayLeft = $derived(drag && drag.isDragging ? drag.currentX - drag.offsetX : 0);
+	const overlayTop = $derived(drag && drag.isDragging ? drag.currentY - drag.offsetY : 0);
 </script>
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === 'Escape') onDeselect();
+		if (e.key === 'Escape') {
+			if (drag) {
+				drag = null;
+			} else {
+				onDeselect();
+			}
+		}
 	}}
+	onpointermove={onPointerMove}
+	onpointerup={onPointerUp}
 />
 
 <div class="board" role="application" aria-label="Spider Solitaire Game">
-	<h1 class="game-title">Spider</h1>
-	<div class="stats">
-		<span class="stat">{formatTime(elapsed)}</span>
-		<span class="stat-divider"></span>
-		<span class="stat">Moves: {game.moves}</span>
+	<div class="header">
+		<h1 class="game-title"><span class="title-spi">Spi</span><span class="title-der">der</span></h1>
+		<div class="stats">
+			<span class="stat">{formatTime(elapsed)}</span>
+			<span class="stat-divider"></span>
+			<span class="stat">Moves: {game.moves}</span>
+		</div>
 	</div>
 
 	<!-- Info Bar -->
@@ -151,9 +330,27 @@
 				columnIndex={i}
 				selected={game.selected}
 				onCardClick={onTableauClick}
+				onDragStart={onDragStart}
+				isDropTarget={dropTargets.has(i)}
+				dragSourceIndex={drag?.isDragging ? drag.sourceIndex : null}
+				dragCardIndex={drag?.isDragging && drag.sourceIndex === i ? drag.cardIndex : null}
 			/>
 		{/each}
 	</div>
+
+	<!-- Drag Overlay -->
+	{#if drag && drag.isDragging}
+		<div
+			class="drag-overlay"
+			style="left: {overlayLeft}px; top: {overlayTop}px;"
+		>
+			{#each drag.cards as card, i}
+				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 24px));">
+					<CardComponent {card} compact={i < drag.cards.length - 1} />
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	<!-- Win overlay -->
 	{#if game.won}
@@ -204,6 +401,9 @@
 		margin: 0 auto;
 		padding: 1rem;
 		padding-bottom: 4rem;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
 	.back-btn {
@@ -225,23 +425,33 @@
 		background: rgba(255, 255, 255, 0.08);
 	}
 
+	.header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.5rem;
+	}
+
 	.game-title {
-		text-align: center;
-		font-size: 1.6rem;
+		font-size: 1.35rem;
 		font-weight: 800;
-		margin: 0.25rem 0 0.15rem;
-		color: var(--text-primary);
-		letter-spacing: 0.04em;
+		margin: 0;
+		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		opacity: 0.85;
+	}
+
+	.title-spi {
+		color: #e94560;
+	}
+
+	.title-der {
+		color: #ff8a65;
 	}
 
 	.stats {
 		display: flex;
-		justify-content: center;
-		gap: 1.5rem;
+		gap: 1rem;
 		align-items: center;
-		margin-bottom: 0.75rem;
 	}
 
 	.stat {
@@ -341,6 +551,19 @@
 		display: flex;
 		gap: var(--card-gap, 4px);
 		justify-content: center;
+	}
+
+	/* Drag overlay */
+	.drag-overlay {
+		position: fixed;
+		pointer-events: none;
+		z-index: 1000;
+		width: var(--card-w, 60px);
+	}
+
+	.drag-card {
+		position: absolute;
+		left: 0;
 	}
 
 	.controls {

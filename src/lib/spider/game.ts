@@ -73,7 +73,7 @@ export function dealFromStock(state: GameState): GameState {
 	return newState;
 }
 
-function validDescendingRun(cards: SpiderCard[]): boolean {
+export function validDescendingRun(cards: SpiderCard[]): boolean {
 	if (cards.length === 0) return false;
 	if (!cards[0].faceUp) return false;
 	for (let i = 1; i < cards.length; i++) {
@@ -84,7 +84,7 @@ function validDescendingRun(cards: SpiderCard[]): boolean {
 	return true;
 }
 
-function canPlaceOnTableau(card: SpiderCard, column: SpiderCard[]): boolean {
+export function canPlaceOnTableau(card: SpiderCard, column: SpiderCard[]): boolean {
 	if (column.length === 0) return true; // any card on empty
 	const top = column[column.length - 1];
 	return card.rank === top.rank - 1; // descending, any suit
@@ -178,6 +178,83 @@ function attemptMove(state: GameState, destIndex: number): boolean {
 	state.tableau[sel.index].splice(state.tableau[sel.index].length - sel.cardCount);
 	destCol.push(...cards);
 	return true;
+}
+
+/** Execute a move from source to destination column for drag-and-drop. */
+export function executeMove(
+	state: GameState,
+	sourceIndex: number,
+	sourceCardIndex: number,
+	destIndex: number
+): GameState | null {
+	const newState: GameState = JSON.parse(JSON.stringify(state));
+	if (newState.won) return null;
+	if (sourceIndex === destIndex) return null;
+
+	const col = newState.tableau[sourceIndex];
+	if (col.length === 0) return null;
+
+	const cards = col.slice(sourceCardIndex);
+	if (!validDescendingRun(cards)) return null;
+
+	const topCard = cards[0];
+	const destCol = newState.tableau[destIndex];
+	if (!canPlaceOnTableau(topCard, destCol)) return null;
+
+	col.splice(sourceCardIndex);
+	destCol.push(...cards);
+	newState.moves++;
+	newState.selected = null;
+	flipTopCards(newState);
+	checkAndRemoveCompletedRuns(newState);
+	return newState;
+}
+
+/** Auto-move a card run to the best available column.
+ *  Priority: same-suit non-empty > any non-empty > empty column. */
+export function autoMoveFrom(
+	state: GameState,
+	sourceIndex: number,
+	sourceCardIndex: number
+): GameState | null {
+	const col = state.tableau[sourceIndex];
+	if (col.length === 0) return null;
+
+	const cards = col.slice(sourceCardIndex);
+	if (!validDescendingRun(cards)) return null;
+
+	const topCard = cards[0];
+
+	// 1. Try non-empty columns with same-suit match (best move)
+	for (let i = 0; i < 10; i++) {
+		if (i === sourceIndex) continue;
+		const dest = state.tableau[i];
+		if (dest.length === 0) continue;
+		const destTop = dest[dest.length - 1];
+		if (topCard.rank === destTop.rank - 1 && topCard.suit === destTop.suit) {
+			return executeMove(state, sourceIndex, sourceCardIndex, i);
+		}
+	}
+
+	// 2. Try non-empty columns with any rank match
+	for (let i = 0; i < 10; i++) {
+		if (i === sourceIndex) continue;
+		const dest = state.tableau[i];
+		if (dest.length === 0) continue;
+		if (canPlaceOnTableau(topCard, dest)) {
+			return executeMove(state, sourceIndex, sourceCardIndex, i);
+		}
+	}
+
+	// 3. Try empty columns
+	for (let i = 0; i < 10; i++) {
+		if (i === sourceIndex) continue;
+		if (state.tableau[i].length === 0) {
+			return executeMove(state, sourceIndex, sourceCardIndex, i);
+		}
+	}
+
+	return null;
 }
 
 export function clearSelection(state: GameState): GameState {
