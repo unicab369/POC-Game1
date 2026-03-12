@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	import { CardComponent, suitSymbol } from '$lib/cards';
 	import type { Card } from '$lib/cards';
 	import { Pile } from '$lib/cards';
@@ -693,7 +694,7 @@
 				{:else}
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame() : confirmAction(onNewGame)}><span class="menu-icon">&#9654;</span> New Game</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onReset() : confirmAction(onReset)}><span class="menu-icon">&#8634;</span> Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}><span class="menu-icon">&#10005;</span> Quit</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = base; })}><span class="menu-icon">&#10005;</span> Quit</button>
 					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	import CellComponent from './Cell.svelte';
 	import { newGame, revealCell, toggleFlag } from './game';
 	import type { GameState, Difficulty } from './game';
@@ -280,7 +281,7 @@
 				{:else}
 					<button class="menu-item" onclick={() => { pickingDifficulty = true; }}><span class="menu-icon">&#9654;</span> New Game</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onReset() : confirmAction(onReset)}><span class="menu-icon">&#8634;</span> Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}><span class="menu-icon">&#10005;</span> Quit</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = base; })}><span class="menu-icon">&#10005;</span> Quit</button>
 					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
@@ -403,11 +404,12 @@
 	}
 
 	.overlay-box {
-		background: var(--bg-secondary);
+		background: var(--bg-card);
 		padding: 3rem;
 		border-radius: var(--radius);
 		text-align: center;
 		box-shadow: var(--shadow);
+		border: 1.5px solid rgba(255, 255, 255, 0.3);
 	}
 
 	.win-box h2 {
@@ -488,9 +490,10 @@
 		bottom: 50%;
 		left: 50%;
 		transform: translate(-50%, 50%);
-		background: var(--bg-secondary);
+		background: var(--bg-card);
 		border-radius: 12px;
-		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+		box-shadow: var(--shadow);
+		border: 1.5px solid rgba(255, 255, 255, 0.3);
 		overflow: hidden;
 		min-width: 220px;
 		z-index: 60;

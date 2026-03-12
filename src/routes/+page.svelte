@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { base } from '$app/paths';
+
 	const games = [
-		{ name: 'FreeCell', icon: '♠', href: '/freecell', available: true, color: '#e94560' },
-		{ name: 'Solitaire', icon: '♦', href: '/solitaire', available: true, color: '#3498db' },
-		{ name: 'Spider', icon: '♣', href: '/spider', available: true, color: '#2ecc71' },
-		{ name: 'Sudoku', icon: '#', href: '/sudoku', available: true, color: '#f39c12' },
-		{ name: 'Minesweeper', icon: '💣', href: '/minesweeper', available: true, color: '#9b59b6' }
+		{ name: 'FreeCell', icon: '♠', href: `${base}/freecell`, available: true, color: '#e94560' },
+		{ name: 'Solitaire', icon: '♦', href: `${base}/solitaire`, available: true, color: '#3498db' },
+		{ name: 'Spider', icon: '♣', href: `${base}/spider`, available: true, color: '#2ecc71' },
+		{ name: 'Sudoku', icon: '#', href: `${base}/sudoku`, available: true, color: '#f39c12' },
+		{ name: 'Minesweeper', icon: '💣', href: `${base}/minesweeper`, available: true, color: '#9b59b6' }
 	];
 </script>
 

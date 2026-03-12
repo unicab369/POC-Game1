@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	import CellComponent from './Cell.svelte';
 	import {
 		newGame,
@@ -617,7 +618,7 @@
 				{:else}
 					<button class="menu-item" onclick={() => { pickingDifficulty = true; }}><span class="menu-icon">&#9654;</span> New Game</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onReset() : confirmAction(onReset)}><span class="menu-icon">&#8634;</span> Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}><span class="menu-icon">&#10005;</span> Quit</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = base; })}><span class="menu-icon">&#10005;</span> Quit</button>
 					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
