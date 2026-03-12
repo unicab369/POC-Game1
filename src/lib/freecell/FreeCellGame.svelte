@@ -368,11 +368,13 @@
 />
 
 <div class="board" role="application" aria-label="FreeCell Game">
-	<h1 class="game-title">FreeCell</h1>
-	<div class="stats">
-		<span class="stat">{formatTime(elapsed)}</span>
-		<span class="stat-divider"></span>
-		<span class="stat">Moves: {game.moves}</span>
+	<div class="header">
+		<h1 class="game-title"><span class="title-free">Free</span><span class="title-cell">Cell</span></h1>
+		<div class="stats">
+			<span class="stat">{formatTime(elapsed)}</span>
+			<span class="stat-divider"></span>
+			<span class="stat">Moves: {game.moves}</span>
+		</div>
 	</div>
 
 	<!-- Top Bar -->
@@ -534,20 +536,33 @@
 		background: rgba(255, 255, 255, 0.08);
 	}
 
+	.header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.5rem;
+	}
+
 	.game-title {
-		text-align: center;
-		font-size: 1.4rem;
+		font-size: 1.35rem;
 		font-weight: 800;
-		margin: 0 0 0.25rem;
+		margin: 0;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.title-free {
 		color: var(--text-primary);
+	}
+
+	.title-cell {
+		color: var(--accent);
 	}
 
 	.stats {
 		display: flex;
-		justify-content: center;
-		gap: 1.5rem;
+		gap: 1rem;
 		align-items: center;
-		margin-bottom: 0.4rem;
 	}
 
 	.stat {

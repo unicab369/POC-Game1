@@ -227,10 +227,13 @@
 
 	.game-title {
 		text-align: center;
-		font-size: 1.4rem;
+		font-size: 1.6rem;
 		font-weight: 800;
-		margin: 0 0 0.25rem;
+		margin: 0.25rem 0 0.15rem;
 		color: var(--text-primary);
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		opacity: 0.85;
 	}
 
 	.stats {

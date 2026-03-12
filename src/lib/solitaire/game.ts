@@ -182,6 +182,62 @@ function canPlaceOnFoundation(card: SolitaireCard, state: GameState): number {
 	return -1;
 }
 
+function isSameSelection(
+	sel: Selection,
+	target: 'tableau' | 'waste' | 'foundation',
+	index: number
+): boolean {
+	if (sel.source !== target) return false;
+	return sel.index === index;
+}
+
+function tryAutoMove(state: GameState): boolean {
+	const sel = state.selected!;
+	let cards: SolitaireCard[];
+
+	if (sel.source === 'tableau') {
+		const col = state.tableau[sel.index];
+		cards = col.slice(col.length - sel.cardCount);
+	} else {
+		cards = [state.waste[state.waste.length - 1]];
+	}
+
+	const topCard = cards[0];
+
+	// 1. Try foundation (single card only)
+	if (cards.length === 1) {
+		const fi = canPlaceOnFoundation(topCard, state);
+		if (fi !== -1) {
+			state.selected = sel;
+			return attemptMove(state, 'foundation', fi);
+		}
+	}
+
+	// 2. Try non-empty tableau columns
+	for (let i = 0; i < 7; i++) {
+		if (sel.source === 'tableau' && sel.index === i) continue;
+		const col = state.tableau[i];
+		if (col.length === 0) continue;
+		if (canPlaceOnTableau(topCard, col)) {
+			state.selected = sel;
+			return attemptMove(state, 'tableau', i);
+		}
+	}
+
+	// 3. Try empty tableau columns (Kings only)
+	if (topCard.rank === 13) {
+		for (let i = 0; i < 7; i++) {
+			if (sel.source === 'tableau' && sel.index === i) continue;
+			if (state.tableau[i].length === 0) {
+				state.selected = sel;
+				return attemptMove(state, 'tableau', i);
+			}
+		}
+	}
+
+	return false;
+}
+
 export function handleClick(
 	state: GameState,
 	target: 'tableau' | 'waste' | 'foundation',
@@ -193,6 +249,18 @@ export function handleClick(
 	if (newState.won) return newState;
 
 	if (newState.selected) {
+		// If clicking the same selection, try auto-move
+		if (isSameSelection(newState.selected, target, index)) {
+			const moved = tryAutoMove(newState);
+			newState.selected = null;
+			if (moved) {
+				newState.moves++;
+				flipTopCards(newState);
+				autoFoundation(newState);
+			}
+			return newState;
+		}
+
 		const result = attemptMove(newState, target, index);
 		newState.selected = null;
 		if (result) {
@@ -272,6 +340,28 @@ function attemptMove(state: GameState, target: string, index: number): boolean {
 	}
 
 	return false;
+}
+
+export { validDescendingRun, canPlaceOnTableau, canPlaceOnFoundation };
+
+export function executeMove(
+	state: GameState,
+	target: 'tableau' | 'foundation',
+	index: number,
+	sourceType: 'tableau' | 'waste',
+	sourceIndex: number,
+	cardCount: number
+): GameState {
+	const newState: GameState = JSON.parse(JSON.stringify(state));
+	newState.selected = { source: sourceType, index: sourceIndex, cardCount };
+	const result = attemptMove(newState, target, index);
+	newState.selected = null;
+	if (result) {
+		newState.moves++;
+		flipTopCards(newState);
+		autoFoundation(newState);
+	}
+	return result ? newState : state;
 }
 
 export function clearSelection(state: GameState): GameState {
