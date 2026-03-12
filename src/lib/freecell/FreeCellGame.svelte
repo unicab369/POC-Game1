@@ -552,11 +552,11 @@
 	}
 
 	.title-free {
-		color: var(--text-primary);
+		color: #5be0f7;
 	}
 
 	.title-cell {
-		color: var(--accent);
+		color: #f7c948;
 	}
 
 	.stats {

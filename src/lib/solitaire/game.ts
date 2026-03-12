@@ -346,22 +346,86 @@ export { validDescendingRun, canPlaceOnTableau, canPlaceOnFoundation };
 
 export function executeMove(
 	state: GameState,
-	target: 'tableau' | 'foundation',
-	index: number,
-	sourceType: 'tableau' | 'waste',
-	sourceIndex: number,
-	cardCount: number
-): GameState {
+	source: { type: 'tableau' | 'waste'; index: number; cardIndex?: number },
+	target: { type: 'tableau' | 'foundation'; index: number }
+): GameState | null {
 	const newState: GameState = JSON.parse(JSON.stringify(state));
-	newState.selected = { source: sourceType, index: sourceIndex, cardCount };
-	const result = attemptMove(newState, target, index);
-	newState.selected = null;
-	if (result) {
-		newState.moves++;
-		flipTopCards(newState);
-		autoFoundation(newState);
+	if (newState.won) return null;
+
+	let cardCount = 1;
+	if (source.type === 'tableau') {
+		const col = newState.tableau[source.index];
+		if (col.length === 0) return null;
+		const ci = source.cardIndex ?? col.length - 1;
+		cardCount = col.length - ci;
+		const cards = col.slice(ci);
+		if (cardCount > 1 && !validDescendingRun(cards)) return null;
+	} else {
+		if (newState.waste.length === 0) return null;
 	}
-	return result ? newState : state;
+
+	newState.selected = { source: source.type, index: source.index, cardCount };
+	const result = attemptMove(newState, target.type, target.index);
+	newState.selected = null;
+
+	if (!result) return null;
+
+	newState.moves++;
+	flipTopCards(newState);
+	autoFoundation(newState);
+	return newState;
+}
+
+export function autoMoveFrom(
+	state: GameState,
+	source: { type: 'tableau' | 'waste'; index: number; cardIndex?: number }
+): GameState | null {
+	let cards: SolitaireCard[];
+	if (source.type === 'tableau') {
+		const col = state.tableau[source.index];
+		if (col.length === 0) return null;
+		const ci = source.cardIndex ?? col.length - 1;
+		cards = col.slice(ci);
+		if (cards.length > 1 && !validDescendingRun(cards)) return null;
+	} else {
+		if (state.waste.length === 0) return null;
+		cards = [state.waste[state.waste.length - 1]];
+	}
+
+	const topCard = cards[0];
+
+	// 1. Try foundation (single card only)
+	if (cards.length === 1) {
+		const fi = canPlaceOnFoundation(topCard, state);
+		if (fi !== -1) {
+			const result = executeMove(state, source, { type: 'foundation', index: fi });
+			if (result) return result;
+		}
+	}
+
+	// 2. Try non-empty tableau columns
+	for (let i = 0; i < 7; i++) {
+		if (source.type === 'tableau' && source.index === i) continue;
+		const col = state.tableau[i];
+		if (col.length === 0) continue;
+		if (canPlaceOnTableau(topCard, col)) {
+			const result = executeMove(state, source, { type: 'tableau', index: i });
+			if (result) return result;
+		}
+	}
+
+	// 3. Try empty tableau columns (Kings only)
+	if (topCard.rank === 13) {
+		for (let i = 0; i < 7; i++) {
+			if (source.type === 'tableau' && source.index === i) continue;
+			if (state.tableau[i].length === 0) {
+				const result = executeMove(state, source, { type: 'tableau', index: i });
+				if (result) return result;
+			}
+		}
+	}
+
+	return null;
 }
 
 export function clearSelection(state: GameState): GameState {

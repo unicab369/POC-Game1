@@ -1,8 +1,31 @@
 <script lang="ts">
 	import { CardComponent, suitSymbol } from '$lib/cards';
+	import type { Card } from '$lib/cards';
 	import Pile from './Pile.svelte';
-	import { newGame, handleClick, drawCard, clearSelection } from './game';
-	import type { GameState } from './game';
+	import {
+		newGame,
+		handleClick,
+		drawCard,
+		clearSelection,
+		executeMove,
+		autoMoveFrom,
+		validDescendingRun,
+		canPlaceOnTableau,
+		canPlaceOnFoundation
+	} from './game';
+	import type { GameState, SolitaireCard } from './game';
+
+	interface DragState {
+		isDragging: boolean;
+		source: { type: 'tableau' | 'waste'; index: number; cardIndex?: number };
+		cards: SolitaireCard[];
+		startX: number;
+		startY: number;
+		currentX: number;
+		currentY: number;
+		offsetX: number;
+		offsetY: number;
+	}
 
 	let game: GameState = $state(newGame());
 	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
@@ -11,6 +34,39 @@
 	let pendingAction: (() => void) | null = $state(null);
 	let elapsed = $state(0);
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
+	let drag: DragState | null = $state(null);
+	let suppressNextClick = $state(false);
+	let lastTap: { key: string; time: number } | null = null;
+	const DOUBLE_TAP_MS = 400;
+
+	function handleDoubleTap(
+		sourceType: 'tableau' | 'waste',
+		index: number,
+		cardIndex?: number
+	): boolean {
+		const now = Date.now();
+		const key = `${sourceType}-${index}-${cardIndex ?? -1}`;
+
+		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
+			lastTap = null;
+
+			// Undo the selection that the first tap caused
+			if (history.length > 0) {
+				game = history[history.length - 1];
+				history = history.slice(0, -1);
+			}
+
+			const result = autoMoveFrom(game, { type: sourceType, index, cardIndex });
+			if (result) {
+				pushHistory();
+				game = result;
+			}
+			return true;
+		}
+
+		lastTap = { key, time: now };
+		return false;
+	}
 
 	function startTimer() {
 		stopTimer();
@@ -43,6 +99,11 @@
 	}
 
 	function onTableauClick(columnIndex: number, cardIndex: number) {
+		if (suppressNextClick) {
+			suppressNextClick = false;
+			return;
+		}
+		if (cardIndex >= 0 && handleDoubleTap('tableau', columnIndex, cardIndex)) return;
 		pushHistory();
 		if (cardIndex === -1) {
 			game = handleClick(game, 'tableau', columnIndex);
@@ -52,11 +113,20 @@
 	}
 
 	function onWasteClick() {
+		if (suppressNextClick) {
+			suppressNextClick = false;
+			return;
+		}
+		if (handleDoubleTap('waste', 0)) return;
 		pushHistory();
 		game = handleClick(game, 'waste', 0);
 	}
 
 	function onFoundationClick(index: number) {
+		if (suppressNextClick) {
+			suppressNextClick = false;
+			return;
+		}
 		pushHistory();
 		game = handleClick(game, 'foundation', index);
 	}
@@ -112,12 +182,177 @@
 	}
 
 	const foundationSuits = ['spades', 'hearts', 'diamonds', 'clubs'] as const;
+
+	// --- Drag and Drop ---
+
+	function getDragCards(
+		source: DragState['source']
+	): SolitaireCard[] {
+		if (source.type === 'waste') {
+			if (game.waste.length === 0) return [];
+			return [game.waste[game.waste.length - 1]];
+		}
+		const col = game.tableau[source.index];
+		const ci = source.cardIndex ?? col.length - 1;
+		return col.slice(ci);
+	}
+
+	function onDragStart(
+		sourceType: 'tableau' | 'waste',
+		index: number,
+		e: PointerEvent,
+		cardIndex?: number
+	) {
+		if (game.won) return;
+		if (e.button !== 0) return;
+
+		const source: DragState['source'] = { type: sourceType, index, cardIndex };
+
+		// Validate draggable
+		if (sourceType === 'tableau') {
+			const col = game.tableau[index];
+			if (col.length === 0) return;
+			const ci = cardIndex ?? col.length - 1;
+			const card = col[ci];
+			if (!card.faceUp) return;
+			const cards = col.slice(ci);
+			if (cards.length > 1 && !validDescendingRun(cards)) return;
+		} else {
+			if (game.waste.length === 0) return;
+		}
+
+		const cards = getDragCards(source);
+		if (cards.length === 0) return;
+
+		const el = e.currentTarget as HTMLElement;
+		if (el.hasPointerCapture(e.pointerId)) {
+			el.releasePointerCapture(e.pointerId);
+		}
+		e.preventDefault();
+
+		const rect = el.getBoundingClientRect();
+
+		drag = {
+			isDragging: false,
+			source,
+			cards,
+			startX: e.clientX,
+			startY: e.clientY,
+			currentX: e.clientX,
+			currentY: e.clientY,
+			offsetX: e.clientX - rect.left,
+			offsetY: e.clientY - rect.top
+		};
+	}
+
+	function onTableauDragStart(columnIndex: number, cardIndex: number, e: PointerEvent) {
+		onDragStart('tableau', columnIndex, e, cardIndex);
+	}
+
+	function onWasteDragStart(e: PointerEvent) {
+		onDragStart('waste', 0, e);
+	}
+
+	function onPointerMove(e: PointerEvent) {
+		if (!drag) return;
+
+		const dx = e.clientX - drag.startX;
+		const dy = e.clientY - drag.startY;
+
+		if (!drag.isDragging) {
+			if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+				drag.isDragging = true;
+				if (game.selected) {
+					game = clearSelection(game);
+				}
+			} else {
+				return;
+			}
+		}
+
+		drag.currentX = e.clientX;
+		drag.currentY = e.clientY;
+	}
+
+	function findDropTarget(x: number, y: number): { type: 'tableau' | 'foundation'; index: number } | null {
+		const elements = document.elementsFromPoint(x, y);
+		for (const el of elements) {
+			const dropEl = (el as HTMLElement).closest('[data-drop]') as HTMLElement | null;
+			if (dropEl) {
+				const dropType = dropEl.dataset.drop as 'tableau' | 'foundation';
+				const dropIndex = parseInt(dropEl.dataset.dropIndex ?? '0', 10);
+				return { type: dropType, index: dropIndex };
+			}
+		}
+		return null;
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (!drag) return;
+
+		if (!drag.isDragging) {
+			drag = null;
+			return;
+		}
+
+		suppressNextClick = true;
+
+		const target = findDropTarget(e.clientX, e.clientY);
+		if (target) {
+			const result = executeMove(game, drag.source, target);
+			if (result) {
+				pushHistory();
+				game = result;
+			}
+		}
+
+		drag = null;
+	}
+
+	// Compute valid drop targets during drag
+	const dropTargets = $derived.by(() => {
+		if (!drag || !drag.isDragging) return new Set<string>();
+
+		const targets = new Set<string>();
+		const cards = drag.cards;
+		const topCard = cards[0];
+
+		// Check tableau columns
+		for (let i = 0; i < 7; i++) {
+			if (drag.source.type === 'tableau' && drag.source.index === i) continue;
+			const col = game.tableau[i];
+			if (canPlaceOnTableau(topCard, col)) {
+				targets.add(`tableau-${i}`);
+			}
+		}
+
+		// Check foundations (single card only)
+		if (cards.length === 1) {
+			const fi = canPlaceOnFoundation(topCard, game);
+			if (fi !== -1) {
+				targets.add(`foundation-${fi}`);
+			}
+		}
+
+		return targets;
+	});
+
+	const overlayLeft = $derived(drag && drag.isDragging ? drag.currentX - drag.offsetX : 0);
+	const overlayTop = $derived(drag && drag.isDragging ? drag.currentY - drag.offsetY : 0);
 </script>
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === 'Escape') onDeselect();
+		if (e.key === 'Escape') {
+			if (drag) {
+				drag = null;
+			} else {
+				onDeselect();
+			}
+		}
 	}}
+	onpointermove={onPointerMove}
+	onpointerup={onPointerUp}
 />
 
 <div class="board" role="application" aria-label="Solitaire Game">
@@ -133,28 +368,41 @@
 		<!-- Foundations -->
 		<div class="cell-group">
 			{#each game.foundations as pile, i}
-				{#if pile.length > 0}
-					<CardComponent card={pile[pile.length - 1]} onclick={() => onFoundationClick(i)} />
-				{:else}
-					<button class="slot foundation" onclick={() => onFoundationClick(i)}>
-						<span class="slot-label foundation-label">{suitSymbol(foundationSuits[i])}</span>
-					</button>
-				{/if}
+				<div
+					class="slot-wrapper"
+					class:drop-target={dropTargets.has(`foundation-${i}`)}
+					data-drop="foundation"
+					data-drop-index={i}
+				>
+					{#if pile.length > 0}
+						<CardComponent card={pile[pile.length - 1]} onclick={() => onFoundationClick(i)} />
+					{:else}
+						<button class="slot foundation" onclick={() => onFoundationClick(i)}>
+							<span class="slot-label foundation-label">{suitSymbol(foundationSuits[i])}</span>
+						</button>
+					{/if}
+				</div>
 			{/each}
 		</div>
 
 		<!-- Stock + Waste -->
 		<div class="cell-group">
 			<!-- Waste -->
-			{#if game.waste.length > 0}
-				<CardComponent
-					card={game.waste[game.waste.length - 1]}
-					selected={game.selected?.source === 'waste'}
-					onclick={onWasteClick}
-				/>
-			{:else}
-				<div class="slot"></div>
-			{/if}
+			<div class="slot-wrapper">
+				{#if game.waste.length > 0}
+					<CardComponent
+						card={game.waste[game.waste.length - 1]}
+						selected={game.selected?.source === 'waste'}
+						onclick={onWasteClick}
+						onpointerdown={(e: PointerEvent) => onWasteDragStart(e)}
+					/>
+					{#if drag?.isDragging && drag.source.type === 'waste'}
+						<div class="drag-source-overlay"></div>
+					{/if}
+				{:else}
+					<div class="slot"></div>
+				{/if}
+			</div>
 			<!-- Stock -->
 			{#if game.stock.length > 0}
 				<CardComponent card={game.stock[game.stock.length - 1]} faceDown={true} onclick={onStockClick} />
@@ -174,9 +422,27 @@
 				columnIndex={i}
 				selected={game.selected}
 				onCardClick={onTableauClick}
+				onDragStart={onTableauDragStart}
+				isDropTarget={dropTargets.has(`tableau-${i}`)}
+				dragSourceIndex={drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null}
+				dragCardIndex={drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null}
 			/>
 		{/each}
 	</div>
+
+	<!-- Drag Overlay -->
+	{#if drag && drag.isDragging}
+		<div
+			class="drag-overlay"
+			style="left: {overlayLeft}px; top: {overlayTop}px;"
+		>
+			{#each drag.cards as card, i}
+				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 28px));">
+					<CardComponent {card} compact={i < drag.cards.length - 1} />
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	<!-- Win overlay -->
 	{#if game.won}
@@ -227,6 +493,9 @@
 		margin: 0 auto;
 		padding: 1rem;
 		padding-bottom: 4rem;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
 	.back-btn {
@@ -292,6 +561,18 @@
 		gap: var(--card-gap, 6px);
 	}
 
+	.slot-wrapper {
+		position: relative;
+		border-radius: 8px;
+		transition: outline-color 0.15s;
+		outline: 2px solid transparent;
+		outline-offset: 1px;
+	}
+
+	.slot-wrapper.drop-target {
+		outline-color: rgba(0, 229, 255, 0.6);
+	}
+
 	.slot {
 		width: var(--card-w, 70px);
 		height: var(--card-h, 100px);
@@ -326,10 +607,31 @@
 		opacity: 0.3;
 	}
 
+	.drag-source-overlay {
+		position: absolute;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		border-radius: 6px;
+		pointer-events: none;
+	}
+
 	.tableau {
 		display: flex;
 		gap: var(--card-gap, 6px);
 		justify-content: center;
+	}
+
+	/* Drag overlay */
+	.drag-overlay {
+		position: fixed;
+		pointer-events: none;
+		z-index: 1000;
+		width: var(--card-w, 70px);
+	}
+
+	.drag-card {
+		position: absolute;
+		left: 0;
 	}
 
 	.controls {
