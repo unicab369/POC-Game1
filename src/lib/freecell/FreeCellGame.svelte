@@ -278,6 +278,7 @@
 	}
 
 	function onFreeCellClick(index: number) {
+		hint = null;
 		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
@@ -293,6 +294,7 @@
 	}
 
 	function onNewGame() {
+		hint = null;
 		game = newGame();
 		initialGame = structuredClone($state.snapshot(game));
 		history = [];
@@ -301,6 +303,7 @@
 	}
 
 	function onReset() {
+		hint = null;
 		game = structuredClone($state.snapshot(initialGame));
 		history = [];
 		showPlayMenu = false;
@@ -308,6 +311,7 @@
 	}
 
 	function onUndo() {
+		hint = null;
 		if (history.length === 0) return;
 		game = history[history.length - 1];
 		history = history.slice(0, -1);
@@ -554,6 +558,7 @@
 					class="slot-wrapper"
 					class:drop-target={dropTargets.has(`freecell-${i}`)}
 					class:shake={shakeTarget?.type === 'freecell' && shakeTarget.index === i}
+					class:hint={hint?.source.type === 'freecell' && hint.source.index === i}
 					data-drop="freecell"
 					data-drop-index={i}
 				>
@@ -615,6 +620,7 @@
 				dragCardIndex={(drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null) ?? (animSource?.type === 'tableau' && animSource.index === i ? (animSource.cardIndex ?? null) : null)}
 				shakeCardIndex={shakeTarget?.type === 'tableau' && shakeTarget.index === i ? (shakeTarget.cardIndex ?? game.tableau[i].length - 1) : null}
 				runStartIndex={runStartIndices[i]}
+				hintCardIndex={hint?.source.type === 'tableau' && hint.source.index === i ? (hint.source.cardIndex ?? null) : null}
 			/>
 		{/each}
 	</div>
@@ -661,6 +667,7 @@
 
 <!-- Controls -->
 <div class="controls">
+	<button class="btn btn-secondary" onclick={findHint} disabled={game.won}>Hint</button>
 	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}>Undo</button>
 	<div class="play-menu-wrapper">
 		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; }}>Play &#9662;</button>
@@ -791,6 +798,15 @@
 
 	.slot-wrapper.shake {
 		animation: shake 0.35s ease-out;
+	}
+
+	.slot-wrapper.hint {
+		animation: hint-pulse 1s ease-in-out infinite;
+	}
+
+	@keyframes hint-pulse {
+		0%, 100% { filter: brightness(1); }
+		50% { filter: brightness(1.3) drop-shadow(0 0 8px rgba(241, 196, 15, 0.8)); }
 	}
 
 	@keyframes shake {

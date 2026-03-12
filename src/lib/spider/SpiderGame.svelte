@@ -234,6 +234,7 @@
 	}
 
 	function onReset() {
+		hint = null;
 		game = structuredClone($state.snapshot(initialGame));
 		history = [];
 		showPlayMenu = false;
@@ -241,6 +242,7 @@
 	}
 
 	function onUndo() {
+		hint = null;
 		if (history.length === 0) return;
 		game = history[history.length - 1];
 		history = history.slice(0, -1);
@@ -438,7 +440,7 @@
 				dragSourceIndex={(drag?.isDragging ? drag.sourceIndex : null) ?? animSourceIndex}
 				dragCardIndex={(drag?.isDragging && drag.sourceIndex === i ? drag.cardIndex : null) ?? (animSourceIndex === i ? animCardIndex : null)}
 				shakeCardIndex={shakeTarget?.col === i ? shakeTarget.cardIndex : null}
-			hintCardIndex={hint && hint.sourceIndex === i ? hint.cardIndex : null}
+				hintCardIndex={hint && hint.sourceIndex === i ? hint.cardIndex : null}
 			/>
 		{/each}
 	</div>

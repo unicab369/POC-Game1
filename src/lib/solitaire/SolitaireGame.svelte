@@ -278,6 +278,7 @@
 	}
 
 	function onStockClick() {
+		hint = null;
 		if (game.stock.length === 0) {
 			if (game.waste.length > 0) {
 				pushHistory();
@@ -292,6 +293,7 @@
 	}
 
 	function onNewGame() {
+		hint = null;
 		game = newGame();
 		initialGame = structuredClone($state.snapshot(game));
 		history = [];
@@ -300,6 +302,7 @@
 	}
 
 	function onReset() {
+		hint = null;
 		game = structuredClone($state.snapshot(initialGame));
 		history = [];
 		showPlayMenu = false;
@@ -307,6 +310,7 @@
 	}
 
 	function onUndo() {
+		hint = null;
 		if (history.length === 0) return;
 		game = history[history.length - 1];
 		history = history.slice(0, -1);
@@ -547,6 +551,7 @@
 							class="waste-card"
 							class:waste-card-enter={card.id === lastDrawnId}
 							class:shake={isTop && shakeTarget?.type === 'waste'}
+							class:hint={isTop && hint?.source.type === 'waste'}
 							style="left: calc({i} * var(--waste-fan-offset, 20px)); --slide-from: calc(var(--card-w) + var(--card-gap) + {2 - i} * var(--waste-fan-offset))"
 							onanimationend={() => { if (card.id === lastDrawnId) lastDrawnId = null; }}
 						>
@@ -591,6 +596,7 @@
 				dragSourceIndex={(drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null) ?? (animSource?.type === 'tableau' ? animSource.index : null)}
 				dragCardIndex={(drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null) ?? (animSource?.type === 'tableau' && animSource.index === i ? (animSource.cardIndex ?? null) : null)}
 				shakeCardIndex={shakeTarget?.type === 'tableau' && shakeTarget.index === i ? (shakeTarget.cardIndex ?? game.tableau[i].length - 1) : null}
+				hintCardIndex={hint?.source.type === 'tableau' && hint.source.index === i ? (hint.source.cardIndex ?? null) : null}
 			/>
 		{/each}
 	</div>
@@ -637,6 +643,7 @@
 
 <!-- Controls -->
 <div class="controls">
+	<button class="btn btn-secondary" onclick={findHint} disabled={game.won}>Hint</button>
 	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}>Undo</button>
 	<div class="play-menu-wrapper">
 		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; }}>Play &#9662;</button>
@@ -814,6 +821,15 @@
 
 	.waste-card.shake {
 		animation: shake 0.35s ease-out;
+	}
+
+	.waste-card.hint {
+		animation: hint-pulse 1s ease-in-out infinite;
+	}
+
+	@keyframes hint-pulse {
+		0%, 100% { filter: brightness(1); }
+		50% { filter: brightness(1.3) drop-shadow(0 0 8px rgba(241, 196, 15, 0.8)); }
 	}
 
 	@keyframes shake {
