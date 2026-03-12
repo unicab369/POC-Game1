@@ -7,7 +7,7 @@
 		handleClick,
 		clearSelection,
 		executeMove,
-		autoMoveFrom,
+		autoFoundationStep,
 		validRun,
 		canPlaceOnTableau,
 		canPlaceOnFoundation,
@@ -39,28 +39,180 @@
 	let lastTap: { key: string; time: number } | null = null;
 	const DOUBLE_TAP_MS = 400;
 
+	interface MoveAnim {
+		cards: Card[];
+		fromX: number;
+		fromY: number;
+		toX: number;
+		toY: number;
+		started: boolean;
+	}
+	let moveAnim: MoveAnim | null = $state(null);
+	let pendingMoveState: GameState | null = null;
+	let animSource: { type: 'tableau' | 'freecell'; index: number; cardIndex?: number } | null = $state(null);
+	const MOVE_ANIM_MS = 200;
+
+	function getCompactHeight(): number {
+		const piles = document.querySelectorAll('[data-drop="tableau"]');
+		for (const pile of piles) {
+			const ws = pile.querySelectorAll('.card-wrapper');
+			if (ws.length >= 2) {
+				return ws[1].getBoundingClientRect().top - ws[0].getBoundingClientRect().top;
+			}
+		}
+		return 38;
+	}
+
+	function getSourcePos(type: string, index: number, cardIndex?: number): { x: number; y: number } | null {
+		const el = document.querySelector(`[data-drop="${type}"][data-drop-index="${index}"]`);
+		if (!el) return null;
+		if (type === 'tableau' && cardIndex !== undefined) {
+			const ws = el.querySelectorAll('.card-wrapper');
+			if (ws[cardIndex]) {
+				const r = ws[cardIndex].getBoundingClientRect();
+				return { x: r.left, y: r.top };
+			}
+		}
+		const r = el.getBoundingClientRect();
+		return { x: r.left, y: r.top };
+	}
+
+	function getDestPos(type: string, index: number): { x: number; y: number } | null {
+		const el = document.querySelector(`[data-drop="${type}"][data-drop-index="${index}"]`);
+		if (!el) return null;
+		const r = el.getBoundingClientRect();
+		if (type === 'tableau') {
+			const ws = el.querySelectorAll('.card-wrapper');
+			if (ws.length > 0) {
+				const compactH = getCompactHeight();
+				return { x: r.left, y: r.top + ws.length * compactH };
+			}
+		}
+		return { x: r.left, y: r.top };
+	}
+
+	function findAutoTarget(
+		sourceType: 'tableau' | 'freecell',
+		index: number,
+		cardIndex?: number
+	): { target: { type: 'tableau' | 'freecell' | 'foundation'; index: number }; cards: Card[] } | null {
+		let cards: Card[];
+		if (sourceType === 'tableau') {
+			const col = game.tableau[index];
+			if (col.length === 0) return null;
+			const ci = cardIndex ?? col.length - 1;
+			cards = col.slice(ci);
+			if (cards.length > 1 && !validRun(cards)) return null;
+		} else {
+			if (!game.freeCells[index]) return null;
+			cards = [game.freeCells[index]!];
+		}
+		const top = cards[0];
+
+		if (cards.length === 1) {
+			const fi = canPlaceOnFoundation(top, game);
+			if (fi !== -1) return { target: { type: 'foundation', index: fi }, cards };
+		}
+		for (let i = 0; i < 8; i++) {
+			if (sourceType === 'tableau' && index === i) continue;
+			if (game.tableau[i].length === 0) continue;
+			if (canPlaceOnTableau(top, game.tableau[i]) && cards.length <= maxMovable(game, false))
+				return { target: { type: 'tableau', index: i }, cards };
+		}
+		for (let i = 0; i < 8; i++) {
+			if (sourceType === 'tableau' && index === i) continue;
+			if (game.tableau[i].length === 0 && cards.length <= maxMovable(game, true))
+				return { target: { type: 'tableau', index: i }, cards };
+		}
+		if (cards.length === 1) {
+			for (let i = 0; i < 4; i++) {
+				if (game.freeCells[i] === null)
+					return { target: { type: 'freecell', index: i }, cards };
+			}
+		}
+		return null;
+	}
+
+	function chainAutoFoundation() {
+		const step = autoFoundationStep(game);
+		if (!step) return;
+
+		const ci = step.source === 'tableau' ? game.tableau[step.sourceIndex].length - 1 : undefined;
+		const from = getSourcePos(step.source, step.sourceIndex, ci);
+		const to = getDestPos('foundation', step.fi);
+
+		if (!from || !to) {
+			game = step.newState;
+			chainAutoFoundation();
+			return;
+		}
+
+		animSource = { type: step.source, index: step.sourceIndex, cardIndex: ci };
+		moveAnim = { cards: [step.card], fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
+
+		requestAnimationFrame(() => {
+			if (moveAnim) moveAnim.started = true;
+			setTimeout(() => {
+				game = step.newState;
+				moveAnim = null;
+				animSource = null;
+				chainAutoFoundation();
+			}, MOVE_ANIM_MS);
+		});
+	}
+
 	function handleDoubleTap(
 		sourceType: 'tableau' | 'freecell',
 		index: number,
 		cardIndex?: number
 	): boolean {
+		if (moveAnim) return true;
 		const now = Date.now();
 		const key = `${sourceType}-${index}-${cardIndex ?? -1}`;
 
 		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
 			lastTap = null;
+			if (history.length === 0) return false;
 
-			// Undo the selection that the first tap caused
 			if (history.length > 0) {
 				game = history[history.length - 1];
 				history = history.slice(0, -1);
 			}
 
-			const result = autoMoveFrom(game, { type: sourceType, index, cardIndex });
-			if (result) {
+			const found = findAutoTarget(sourceType, index, cardIndex);
+			if (!found) return true;
+
+			const result = executeMove(game, { type: sourceType, index, cardIndex }, found.target, true);
+			if (!result) return true;
+
+			const from = getSourcePos(sourceType, index, cardIndex);
+			const to = getDestPos(found.target.type, found.target.index);
+
+			if (!from || !to) {
 				pushHistory();
 				game = result;
+				chainAutoFoundation();
+				return true;
 			}
+
+			pendingMoveState = result;
+			animSource = { type: sourceType, index, cardIndex: cardIndex ?? (sourceType === 'tableau' ? game.tableau[index].length - 1 : undefined) };
+			moveAnim = { cards: found.cards, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
+
+			requestAnimationFrame(() => {
+				if (moveAnim) moveAnim.started = true;
+				setTimeout(() => {
+					if (pendingMoveState) {
+						pushHistory();
+						game = pendingMoveState;
+						pendingMoveState = null;
+					}
+					moveAnim = null;
+					animSource = null;
+					chainAutoFoundation();
+				}, MOVE_ANIM_MS);
+			});
+
 			return true;
 		}
 
@@ -99,36 +251,45 @@
 	}
 
 	function onTableauClick(columnIndex: number, cardIndex: number) {
+		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
 		}
 		if (cardIndex >= 0 && handleDoubleTap('tableau', columnIndex, cardIndex)) return;
+		const prevMoves = game.moves;
 		pushHistory();
 		if (cardIndex === -1) {
-			game = handleClick(game, 'tableau', columnIndex);
+			game = handleClick(game, 'tableau', columnIndex, undefined, true);
 		} else {
-			game = handleClick(game, 'tableau', columnIndex, cardIndex);
+			game = handleClick(game, 'tableau', columnIndex, cardIndex, true);
 		}
+		if (game.moves > prevMoves) chainAutoFoundation();
 	}
 
 	function onFreeCellClick(index: number) {
+		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
 		}
 		if (handleDoubleTap('freecell', index)) return;
+		const prevMoves = game.moves;
 		pushHistory();
-		game = handleClick(game, 'freecell', index);
+		game = handleClick(game, 'freecell', index, undefined, true);
+		if (game.moves > prevMoves) chainAutoFoundation();
 	}
 
 	function onFoundationClick(index: number) {
+		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
 		}
+		const prevMoves = game.moves;
 		pushHistory();
-		game = handleClick(game, 'foundation', index);
+		game = handleClick(game, 'foundation', index, undefined, true);
+		if (game.moves > prevMoves) chainAutoFoundation();
 	}
 
 	function onNewGame() {
@@ -298,10 +459,13 @@
 
 		const target = findDropTarget(e.clientX, e.clientY);
 		if (target) {
-			const result = executeMove(game, drag.source, target);
+			const result = executeMove(game, drag.source, target, true);
 			if (result) {
 				pushHistory();
 				game = result;
+				drag = null;
+				chainAutoFoundation();
+				return;
 			}
 		}
 
@@ -396,7 +560,7 @@
 							onclick={() => onFreeCellClick(i)}
 							onpointerdown={(e: PointerEvent) => onFreeCellDragStart(i, e)}
 						/>
-						{#if drag?.isDragging && drag.source.type === 'freecell' && drag.source.index === i}
+						{#if (drag?.isDragging && drag.source.type === 'freecell' && drag.source.index === i) || (animSource?.type === 'freecell' && animSource.index === i)}
 							<div class="drag-source-overlay"></div>
 						{/if}
 					{:else}
@@ -442,8 +606,8 @@
 				onCardClick={onTableauClick}
 				onDragStart={onTableauDragStart}
 				isDropTarget={dropTargets.has(`tableau-${i}`)}
-				dragSourceIndex={drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null}
-				dragCardIndex={drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null}
+				dragSourceIndex={(drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null) ?? (animSource?.type === 'tableau' ? animSource.index : null)}
+				dragCardIndex={(drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null) ?? (animSource?.type === 'tableau' && animSource.index === i ? (animSource.cardIndex ?? null) : null)}
 			/>
 		{/each}
 	</div>
@@ -457,6 +621,21 @@
 			{#each drag.cards as card, i}
 				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 38px));">
 					<CardComponent {card} compact={i < drag.cards.length - 1} />
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- Move Animation Overlay -->
+	{#if moveAnim}
+		<div
+			class="move-anim"
+			class:animating={moveAnim.started}
+			style="left: {moveAnim.fromX}px; top: {moveAnim.fromY}px; --move-tx: {moveAnim.toX - moveAnim.fromX}px; --move-ty: {moveAnim.toY - moveAnim.fromY}px;"
+		>
+			{#each moveAnim.cards as card, i}
+				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 38px));">
+					<CardComponent {card} compact={i < moveAnim.cards.length - 1} />
 				</div>
 			{/each}
 		</div>
@@ -489,7 +668,8 @@
 				{:else}
 					<button class="menu-item" onclick={() => confirmAction(onNewGame)}>New Game</button>
 					<button class="menu-item" onclick={() => confirmAction(onReset)}>Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Close</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Quit</button>
+					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
 		{/if}
@@ -658,6 +838,21 @@
 		left: 0;
 	}
 
+	/* Move animation */
+	.move-anim {
+		position: fixed;
+		pointer-events: none;
+		z-index: 999;
+		width: var(--card-w, 78px);
+		transform: translate(0, 0);
+		transition: none;
+	}
+
+	.move-anim.animating {
+		transform: translate(var(--move-tx), var(--move-ty));
+		transition: transform 200ms ease-out;
+	}
+
 	.controls {
 		position: fixed;
 		bottom: 0;
@@ -738,6 +933,12 @@
 
 	.menu-item:hover {
 		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.menu-item.cancel {
+		color: var(--text-muted);
+		font-size: 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
 	.confirm-label {

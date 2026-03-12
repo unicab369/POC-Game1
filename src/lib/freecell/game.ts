@@ -251,7 +251,8 @@ export function handleClick(
 	state: GameState,
 	target: 'tableau' | 'freecell' | 'foundation',
 	index: number,
-	cardIndex?: number // position within tableau column
+	cardIndex?: number, // position within tableau column
+	skipAutoFoundation?: boolean
 ): GameState {
 	const newState: GameState = JSON.parse(JSON.stringify(state));
 
@@ -264,7 +265,7 @@ export function handleClick(
 			newState.selected = null;
 			if (moved) {
 				newState.moves++;
-				autoFoundation(newState);
+				if (!skipAutoFoundation) autoFoundation(newState);
 			}
 			return newState;
 		}
@@ -274,7 +275,7 @@ export function handleClick(
 		newState.selected = null;
 		if (result) {
 			newState.moves++;
-			autoFoundation(newState);
+			if (!skipAutoFoundation) autoFoundation(newState);
 		}
 		return newState;
 	}
@@ -374,7 +375,8 @@ function attemptMove(state: GameState, target: string, index: number): boolean {
 export function executeMove(
 	state: GameState,
 	source: { type: 'tableau' | 'freecell'; index: number; cardIndex?: number },
-	target: { type: 'tableau' | 'freecell' | 'foundation'; index: number }
+	target: { type: 'tableau' | 'freecell' | 'foundation'; index: number },
+	skipAutoFoundation?: boolean
 ): GameState | null {
 	const newState: GameState = JSON.parse(JSON.stringify(state));
 	if (newState.won) return null;
@@ -399,8 +401,47 @@ export function executeMove(
 	if (!result) return null;
 
 	newState.moves++;
-	autoFoundation(newState);
+	if (!skipAutoFoundation) autoFoundation(newState);
 	return newState;
+}
+
+/** Perform one auto-foundation step. Returns the new state and info about
+ *  which card moved, or null if no auto-foundation move is available. */
+export function autoFoundationStep(state: GameState): {
+	newState: GameState;
+	source: 'tableau' | 'freecell';
+	sourceIndex: number;
+	card: Card;
+	fi: number;
+} | null {
+	const newState: GameState = JSON.parse(JSON.stringify(state));
+
+	for (let col = 0; col < 8; col++) {
+		const pile = newState.tableau[col];
+		if (pile.length === 0) continue;
+		const card = pile[pile.length - 1];
+		if (canAutoFoundation(newState, card)) {
+			const fi = foundationIndex(newState, card.suit);
+			const moved = pile.pop()!;
+			newState.foundations[fi].push(moved);
+			if (newState.foundations.reduce((s, f) => s + f.length, 0) === 52) newState.won = true;
+			return { newState, source: 'tableau', sourceIndex: col, card: moved, fi };
+		}
+	}
+
+	for (let i = 0; i < 4; i++) {
+		const card = newState.freeCells[i];
+		if (!card) continue;
+		if (canAutoFoundation(newState, card)) {
+			const fi = foundationIndex(newState, card.suit);
+			newState.foundations[fi].push(card);
+			newState.freeCells[i] = null;
+			if (newState.foundations.reduce((s, f) => s + f.length, 0) === 52) newState.won = true;
+			return { newState, source: 'freecell', sourceIndex: i, card, fi };
+		}
+	}
+
+	return null;
 }
 
 /** Auto-move a card from source to the best available target.

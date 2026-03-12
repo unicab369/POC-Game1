@@ -51,6 +51,7 @@
 
 		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
 			lastTap = null;
+			if (history.length === 0) return false;
 
 			// Undo the selection that the first tap caused
 			if (history.length > 0) {
@@ -497,7 +498,8 @@
 				{:else}
 					<button class="menu-item" onclick={() => confirmAction(onNewGame)}>New Game</button>
 					<button class="menu-item" onclick={() => confirmAction(onReset)}>Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Close</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Quit</button>
+					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
 		{/if}
@@ -513,6 +515,7 @@
 		--card-rank-fs: 28px;
 		--card-suit-fs: 24px;
 		--card-big-suit-fs: 48px;
+		--card-face-fs: 64px;
 		--waste-fan-offset: 20px;
 
 		position: relative;
@@ -781,6 +784,12 @@
 		background: rgba(255, 255, 255, 0.08);
 	}
 
+	.menu-item.cancel {
+		color: var(--text-muted);
+		font-size: 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
 	.confirm-label {
 		display: block;
 		padding: 1rem 1.5rem 0.5rem;
@@ -858,6 +867,7 @@
 			--card-rank-fs: calc(var(--card-w) * 0.38);
 			--card-suit-fs: calc(var(--card-w) * 0.32);
 			--card-big-suit-fs: calc(var(--card-w) * 0.65);
+			--card-face-fs: calc(var(--card-w) * 0.9);
 			--waste-fan-offset: calc(var(--card-w) * 0.28);
 
 			max-width: 100%;

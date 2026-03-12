@@ -158,7 +158,7 @@
 	.face-figure {
 		position: absolute;
 		left: 50%;
-		top: 52%;
+		top: 58%;
 		transform: translate(-50%, -50%);
 		font-size: var(--card-face-fs, 80px);
 		line-height: 1;

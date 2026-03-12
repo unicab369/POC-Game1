@@ -39,6 +39,86 @@
 	let lastTap: { key: string; time: number } | null = null;
 	const DOUBLE_TAP_MS = 400;
 
+	interface MoveAnim {
+		cards: SpiderCard[];
+		fromX: number;
+		fromY: number;
+		toX: number;
+		toY: number;
+		started: boolean;
+	}
+	let moveAnim: MoveAnim | null = $state(null);
+	let pendingMoveState: GameState | null = null;
+	let animSourceIndex: number | null = $state(null);
+	let animCardIndex: number | null = $state(null);
+	const MOVE_ANIM_MS = 200;
+
+	function getCompactHeight(): number {
+		const piles = document.querySelectorAll('[data-drop="tableau"]');
+		for (const pile of piles) {
+			const ws = pile.querySelectorAll('.card-wrapper');
+			if (ws.length >= 2) {
+				return ws[1].getBoundingClientRect().top - ws[0].getBoundingClientRect().top;
+			}
+		}
+		return 24;
+	}
+
+	function getSourcePos(colIndex: number, cardIndex: number): { x: number; y: number } | null {
+		const el = document.querySelector(`[data-drop="tableau"][data-drop-index="${colIndex}"]`);
+		if (!el) return null;
+		const ws = el.querySelectorAll('.card-wrapper');
+		if (ws[cardIndex]) {
+			const r = ws[cardIndex].getBoundingClientRect();
+			return { x: r.left, y: r.top };
+		}
+		return null;
+	}
+
+	function getDestPos(colIndex: number): { x: number; y: number } | null {
+		const el = document.querySelector(`[data-drop="tableau"][data-drop-index="${colIndex}"]`);
+		if (!el) return null;
+		const r = el.getBoundingClientRect();
+		const ws = el.querySelectorAll('.card-wrapper');
+		if (ws.length > 0) {
+			const compactH = getCompactHeight();
+			return { x: r.left, y: r.top + ws.length * compactH };
+		}
+		return { x: r.left, y: r.top };
+	}
+
+	function findAutoTarget(sourceIndex: number, cardIndex: number): { destIndex: number; cards: SpiderCard[] } | null {
+		const col = game.tableau[sourceIndex];
+		if (col.length === 0) return null;
+		const cards = col.slice(cardIndex);
+		if (!validDescendingRun(cards)) return null;
+		const top = cards[0];
+
+		// Same-suit match
+		for (let i = 0; i < 10; i++) {
+			if (i === sourceIndex) continue;
+			const dest = game.tableau[i];
+			if (dest.length === 0) continue;
+			const dTop = dest[dest.length - 1];
+			if (top.rank === dTop.rank - 1 && top.suit === dTop.suit)
+				return { destIndex: i, cards };
+		}
+		// Any rank match
+		for (let i = 0; i < 10; i++) {
+			if (i === sourceIndex) continue;
+			if (game.tableau[i].length === 0) continue;
+			if (canPlaceOnTableau(top, game.tableau[i]))
+				return { destIndex: i, cards };
+		}
+		// Empty column
+		for (let i = 0; i < 10; i++) {
+			if (i === sourceIndex) continue;
+			if (game.tableau[i].length === 0)
+				return { destIndex: i, cards };
+		}
+		return null;
+	}
+
 	function startTimer() {
 		stopTimer();
 		elapsed = 0;
@@ -76,23 +156,53 @@
 		sourceIndex: number,
 		cardIndex: number
 	): boolean {
+		if (moveAnim) return true;
 		const now = Date.now();
 		const key = `tableau-${sourceIndex}-${cardIndex}`;
 
 		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
 			lastTap = null;
+			if (history.length === 0) return false;
 
-			// Undo the selection that the first tap caused
 			if (history.length > 0) {
 				game = history[history.length - 1];
 				history = history.slice(0, -1);
 			}
 
-			const result = autoMoveFrom(game, sourceIndex, cardIndex);
-			if (result) {
+			const found = findAutoTarget(sourceIndex, cardIndex);
+			if (!found) return true;
+
+			const result = executeMove(game, sourceIndex, cardIndex, found.destIndex);
+			if (!result) return true;
+
+			const from = getSourcePos(sourceIndex, cardIndex);
+			const to = getDestPos(found.destIndex);
+
+			if (!from || !to) {
 				pushHistory();
 				game = result;
+				return true;
 			}
+
+			pendingMoveState = result;
+			animSourceIndex = sourceIndex;
+			animCardIndex = cardIndex;
+			moveAnim = { cards: found.cards, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
+
+			requestAnimationFrame(() => {
+				if (moveAnim) moveAnim.started = true;
+				setTimeout(() => {
+					if (pendingMoveState) {
+						pushHistory();
+						game = pendingMoveState;
+						pendingMoveState = null;
+					}
+					moveAnim = null;
+					animSourceIndex = null;
+					animCardIndex = null;
+				}, MOVE_ANIM_MS);
+			});
+
 			return true;
 		}
 
@@ -101,6 +211,7 @@
 	}
 
 	function onTableauClick(columnIndex: number, cardIndex: number) {
+		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
@@ -332,8 +443,8 @@
 				onCardClick={onTableauClick}
 				onDragStart={onDragStart}
 				isDropTarget={dropTargets.has(i)}
-				dragSourceIndex={drag?.isDragging ? drag.sourceIndex : null}
-				dragCardIndex={drag?.isDragging && drag.sourceIndex === i ? drag.cardIndex : null}
+				dragSourceIndex={(drag?.isDragging ? drag.sourceIndex : null) ?? animSourceIndex}
+				dragCardIndex={(drag?.isDragging && drag.sourceIndex === i ? drag.cardIndex : null) ?? (animSourceIndex === i ? animCardIndex : null)}
 			/>
 		{/each}
 	</div>
@@ -347,6 +458,21 @@
 			{#each drag.cards as card, i}
 				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 24px));">
 					<CardComponent {card} compact={i < drag.cards.length - 1} />
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- Move Animation Overlay -->
+	{#if moveAnim}
+		<div
+			class="move-anim"
+			class:animating={moveAnim.started}
+			style="left: {moveAnim.fromX}px; top: {moveAnim.fromY}px; --move-tx: {moveAnim.toX - moveAnim.fromX}px; --move-ty: {moveAnim.toY - moveAnim.fromY}px;"
+		>
+			{#each moveAnim.cards as card, i}
+				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 24px));">
+					<CardComponent {card} compact={i < moveAnim.cards.length - 1} />
 				</div>
 			{/each}
 		</div>
@@ -379,7 +505,8 @@
 				{:else}
 					<button class="menu-item" onclick={() => confirmAction(onNewGame)}>New Game</button>
 					<button class="menu-item" onclick={() => confirmAction(onReset)}>Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Close</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Quit</button>
+					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
 		{/if}
@@ -395,6 +522,7 @@
 		--card-rank-fs: 24px;
 		--card-suit-fs: 20px;
 		--card-big-suit-fs: 40px;
+		--card-face-fs: 52px;
 
 		position: relative;
 		max-width: 750px;
@@ -566,6 +694,21 @@
 		left: 0;
 	}
 
+	/* Move animation */
+	.move-anim {
+		position: fixed;
+		pointer-events: none;
+		z-index: 999;
+		width: var(--card-w, 60px);
+		transform: translate(0, 0);
+		transition: none;
+	}
+
+	.move-anim.animating {
+		transform: translate(var(--move-tx), var(--move-ty));
+		transition: transform 200ms ease-out;
+	}
+
 	.controls {
 		position: fixed;
 		bottom: 0;
@@ -648,6 +791,12 @@
 		background: rgba(255, 255, 255, 0.08);
 	}
 
+	.menu-item.cancel {
+		color: var(--text-muted);
+		font-size: 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
 	.confirm-label {
 		display: block;
 		padding: 1rem 1.5rem 0.5rem;
@@ -725,6 +874,7 @@
 			--card-rank-fs: calc(var(--card-w) * 0.38);
 			--card-suit-fs: calc(var(--card-w) * 0.32);
 			--card-big-suit-fs: calc(var(--card-w) * 0.65);
+			--card-face-fs: calc(var(--card-w) * 0.85);
 
 			max-width: 100%;
 			padding: 0.25rem;
