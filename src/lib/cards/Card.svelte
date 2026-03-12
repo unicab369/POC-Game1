@@ -6,11 +6,12 @@
 		card: Card;
 		selected?: boolean;
 		onclick?: () => void;
+		onpointerdown?: (e: PointerEvent) => void;
 		compact?: boolean;
 		faceDown?: boolean;
 	}
 
-	let { card, selected = false, onclick, compact = false, faceDown = false }: Props = $props();
+	let { card, selected = false, onclick, onpointerdown, compact = false, faceDown = false }: Props = $props();
 
 	const color = $derived(cardColor(card.suit));
 	const symbol = $derived(suitSymbol(card.suit));
@@ -29,6 +30,7 @@
 	class:compact
 	class:face-down={faceDown}
 	onclick={onclick}
+	onpointerdown={onpointerdown}
 >
 	{#if faceDown}
 		<div class="card-back"></div>
@@ -62,6 +64,7 @@
 		line-height: 1;
 		overflow: hidden;
 		position: relative;
+		touch-action: none;
 	}
 
 	.card.compact {

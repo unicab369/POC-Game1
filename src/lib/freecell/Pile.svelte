@@ -7,30 +7,61 @@
 		columnIndex: number;
 		selected: Selection | null;
 		onCardClick: (columnIndex: number, cardIndex: number) => void;
+		onDragStart?: (columnIndex: number, cardIndex: number, e: PointerEvent) => void;
+		isDropTarget?: boolean;
+		dragSourceIndex?: number | null;
+		dragCardIndex?: number | null;
 	}
 
-	let { cards, columnIndex, selected, onCardClick }: Props = $props();
+	let {
+		cards,
+		columnIndex,
+		selected,
+		onCardClick,
+		onDragStart,
+		isDropTarget = false,
+		dragSourceIndex = null,
+		dragCardIndex = null
+	}: Props = $props();
 
 	function isSelected(cardIdx: number): boolean {
 		if (!selected) return false;
 		if (selected.source !== 'tableau' || selected.index !== columnIndex) return false;
 		return cardIdx >= cards.length - selected.cardCount;
 	}
+
+	function isDragSource(cardIdx: number): boolean {
+		if (dragSourceIndex !== columnIndex || dragCardIndex === null) return false;
+		return cardIdx >= dragCardIndex;
+	}
 </script>
 
-<div class="pile" role="list">
+<div
+	class="pile"
+	class:drop-target={isDropTarget}
+	role="list"
+	data-drop="tableau"
+	data-drop-index={columnIndex}
+>
 	{#if cards.length === 0}
 		<button class="empty-slot" onclick={() => onCardClick(columnIndex, -1)}>
 			<span class="empty-label"></span>
 		</button>
 	{:else}
 		{#each cards as card, i (card.id)}
-			<div class="card-wrapper" style="top: calc({i} * var(--card-compact-h, 28px))">
+			<div
+				class="card-wrapper"
+				class:drag-source={isDragSource(i)}
+				style="top: calc({i} * var(--card-compact-h, 28px))"
+			>
 				<CardComponent
 					{card}
 					selected={isSelected(i)}
 					compact={i < cards.length - 1}
 					onclick={() => onCardClick(columnIndex, i)}
+					onpointerdown={onDragStart
+						? (e: PointerEvent) => onDragStart!(columnIndex, i, e)
+						: undefined}
 				/>
 			</div>
 		{/each}
@@ -45,9 +76,19 @@
 		flex-shrink: 0;
 	}
 
+	.pile.drop-target {
+		outline: 2px solid rgba(0, 229, 255, 0.6);
+		outline-offset: 2px;
+		border-radius: 6px;
+	}
+
 	.card-wrapper {
 		position: absolute;
 		left: 0;
+	}
+
+	.card-wrapper.drag-source {
+		opacity: 0.3;
 	}
 
 	.empty-slot {

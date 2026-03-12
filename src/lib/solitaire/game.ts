@@ -13,6 +13,7 @@ export interface GameState {
 	foundations: SolitaireCard[][]; // 4 piles (one per suit)
 	selected: Selection | null;
 	won: boolean;
+	moves: number;
 }
 
 export interface Selection {
@@ -42,7 +43,8 @@ export function newGame(): GameState {
 		waste: [],
 		foundations: [[], [], [], []],
 		selected: null,
-		won: false
+		won: false,
+		moves: 0
 	};
 
 	autoFoundation(state);
@@ -52,6 +54,8 @@ export function newGame(): GameState {
 export function drawCard(state: GameState): GameState {
 	const newState: GameState = JSON.parse(JSON.stringify(state));
 	newState.selected = null;
+
+	newState.moves++;
 
 	if (newState.stock.length > 0) {
 		const card = newState.stock.pop()!;
@@ -192,6 +196,7 @@ export function handleClick(
 		const result = attemptMove(newState, target, index);
 		newState.selected = null;
 		if (result) {
+			newState.moves++;
 			flipTopCards(newState);
 			autoFoundation(newState);
 		}

@@ -12,6 +12,7 @@ export interface GameState {
 	completedSuits: number; // win at 8
 	selected: Selection | null;
 	won: boolean;
+	moves: number;
 }
 
 export interface Selection {
@@ -45,7 +46,8 @@ export function newGame(): GameState {
 		stock,
 		completedSuits: 0,
 		selected: null,
-		won: false
+		won: false,
+		moves: 0
 	};
 }
 
@@ -57,6 +59,8 @@ export function dealFromStock(state: GameState): GameState {
 
 	// Blocked if any column is empty
 	if (newState.tableau.some((col) => col.length === 0)) return newState;
+
+	newState.moves++;
 
 	// Deal 1 card face-up to each of 10 columns
 	for (let col = 0; col < 10; col++) {
@@ -134,6 +138,7 @@ export function handleClick(
 		const result = attemptMove(newState, index);
 		newState.selected = null;
 		if (result) {
+			newState.moves++;
 			flipTopCards(newState);
 			checkAndRemoveCompletedRuns(newState);
 		}

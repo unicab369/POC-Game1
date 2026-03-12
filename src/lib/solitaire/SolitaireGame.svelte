@@ -8,6 +8,35 @@
 	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
 	let history: GameState[] = $state([]);
 	let showPlayMenu = $state(false);
+	let pendingAction: (() => void) | null = $state(null);
+	let elapsed = $state(0);
+	let timerInterval: ReturnType<typeof setInterval> | null = null;
+
+	function startTimer() {
+		stopTimer();
+		elapsed = 0;
+		timerInterval = setInterval(() => {
+			if (!game.won) elapsed++;
+		}, 1000);
+	}
+
+	function stopTimer() {
+		if (timerInterval) {
+			clearInterval(timerInterval);
+			timerInterval = null;
+		}
+	}
+
+	$effect(() => {
+		startTimer();
+		return () => stopTimer();
+	});
+
+	function formatTime(s: number): string {
+		const m = Math.floor(s / 60);
+		const sec = s % 60;
+		return `${m}:${sec.toString().padStart(2, '0')}`;
+	}
 
 	function pushHistory() {
 		history = [...history, structuredClone($state.snapshot(game))];
@@ -42,18 +71,34 @@
 		initialGame = structuredClone($state.snapshot(game));
 		history = [];
 		showPlayMenu = false;
+		startTimer();
 	}
 
 	function onReset() {
 		game = structuredClone($state.snapshot(initialGame));
 		history = [];
 		showPlayMenu = false;
+		startTimer();
 	}
 
 	function onUndo() {
 		if (history.length === 0) return;
 		game = history[history.length - 1];
 		history = history.slice(0, -1);
+	}
+
+	function confirmAction(action: () => void) {
+		pendingAction = action;
+	}
+
+	function onConfirm() {
+		if (pendingAction) pendingAction();
+		pendingAction = null;
+		showPlayMenu = false;
+	}
+
+	function onCancelConfirm() {
+		pendingAction = null;
 	}
 
 	function onDeselect() {
@@ -76,32 +121,15 @@
 />
 
 <div class="board" role="application" aria-label="Solitaire Game">
-	<a href="/" class="back-btn" aria-label="Back to main menu">&larr; Back</a>
+	<h1 class="game-title">Solitaire</h1>
+	<div class="stats">
+		<span class="stat">{formatTime(elapsed)}</span>
+		<span class="stat-divider"></span>
+		<span class="stat">Moves: {game.moves}</span>
+	</div>
 
 	<!-- Top Bar -->
 	<div class="top-bar">
-		<!-- Stock + Waste -->
-		<div class="cell-group">
-			<!-- Stock -->
-			{#if game.stock.length > 0}
-				<CardComponent card={game.stock[game.stock.length - 1]} faceDown={true} onclick={onStockClick} />
-			{:else}
-				<button class="slot stock" onclick={onStockClick}>
-					<span class="slot-label recycle">&#8635;</span>
-				</button>
-			{/if}
-			<!-- Waste -->
-			{#if game.waste.length > 0}
-				<CardComponent
-					card={game.waste[game.waste.length - 1]}
-					selected={game.selected?.source === 'waste'}
-					onclick={onWasteClick}
-				/>
-			{:else}
-				<div class="slot"></div>
-			{/if}
-		</div>
-
 		<!-- Foundations -->
 		<div class="cell-group">
 			{#each game.foundations as pile, i}
@@ -113,6 +141,28 @@
 					</button>
 				{/if}
 			{/each}
+		</div>
+
+		<!-- Stock + Waste -->
+		<div class="cell-group">
+			<!-- Waste -->
+			{#if game.waste.length > 0}
+				<CardComponent
+					card={game.waste[game.waste.length - 1]}
+					selected={game.selected?.source === 'waste'}
+					onclick={onWasteClick}
+				/>
+			{:else}
+				<div class="slot"></div>
+			{/if}
+			<!-- Stock -->
+			{#if game.stock.length > 0}
+				<CardComponent card={game.stock[game.stock.length - 1]} faceDown={true} onclick={onStockClick} />
+			{:else}
+				<button class="slot stock" onclick={onStockClick}>
+					<span class="slot-label recycle">&#8635;</span>
+				</button>
+			{/if}
 		</div>
 	</div>
 
@@ -143,12 +193,20 @@
 <div class="controls">
 	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}>Undo</button>
 	<div class="play-menu-wrapper">
-		<button class="btn" onclick={() => (showPlayMenu = !showPlayMenu)}>Play &#9662;</button>
+		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; }}>Play &#9662;</button>
 		{#if showPlayMenu}
 			<div class="play-menu">
-				<button class="menu-item" onclick={onNewGame}>New Game</button>
-				<button class="menu-item" onclick={onReset}>Reset</button>
-				<a class="menu-item" href="/">Close</a>
+				{#if pendingAction}
+					<span class="confirm-label">Are you sure?</span>
+					<div class="confirm-buttons">
+						<button class="confirm-btn yes" onclick={onConfirm}>Yes</button>
+						<button class="confirm-btn no" onclick={onCancelConfirm}>No</button>
+					</div>
+				{:else}
+					<button class="menu-item" onclick={() => confirmAction(onNewGame)}>New Game</button>
+					<button class="menu-item" onclick={() => confirmAction(onReset)}>Reset</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Close</button>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -188,6 +246,35 @@
 	.back-btn:hover {
 		color: var(--text-primary);
 		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.game-title {
+		text-align: center;
+		font-size: 1.4rem;
+		font-weight: 800;
+		margin: 0 0 0.25rem;
+		color: var(--text-primary);
+	}
+
+	.stats {
+		display: flex;
+		justify-content: center;
+		gap: 1.5rem;
+		align-items: center;
+		margin-bottom: 0.75rem;
+	}
+
+	.stat {
+		color: var(--text-primary);
+		font-size: 1.25rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.stat-divider {
+		width: 1px;
+		height: 1.2rem;
+		background: var(--text-muted);
 	}
 
 	.top-bar {
@@ -293,29 +380,28 @@
 	}
 
 	.play-menu {
-		position: absolute;
-		bottom: 100%;
+		position: fixed;
+		bottom: 50%;
 		left: 50%;
-		transform: translateX(-50%);
-		margin-bottom: 0.5rem;
+		transform: translate(-50%, 50%);
 		background: var(--bg-secondary);
-		border-radius: 8px;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+		border-radius: 12px;
+		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
 		overflow: hidden;
-		min-width: 140px;
-		z-index: 50;
+		min-width: 220px;
+		z-index: 60;
 	}
 
 	.menu-item {
 		display: block;
 		width: 100%;
-		padding: 0.7rem 1rem;
+		padding: 1rem 1.5rem;
 		border: none;
 		background: none;
 		color: var(--text-primary);
-		font-size: 0.9rem;
-		font-weight: 500;
-		text-align: left;
+		font-size: 1.15rem;
+		font-weight: 600;
+		text-align: center;
 		cursor: pointer;
 		text-decoration: none;
 		transition: background 0.15s;
@@ -323,6 +409,50 @@
 
 	.menu-item:hover {
 		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.confirm-label {
+		display: block;
+		padding: 1rem 1.5rem 0.5rem;
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: var(--text-secondary);
+		text-align: center;
+	}
+
+	.confirm-buttons {
+		display: flex;
+		gap: 0.75rem;
+		padding: 0.5rem 1.5rem 1rem;
+		justify-content: center;
+	}
+
+	.confirm-btn {
+		padding: 0.5rem 1.5rem;
+		border: none;
+		border-radius: 8px;
+		font-size: 1.05rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.confirm-btn.yes {
+		background: var(--accent);
+		color: white;
+	}
+
+	.confirm-btn.yes:hover {
+		background: var(--accent-hover);
+	}
+
+	.confirm-btn.no {
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--text-primary);
+	}
+
+	.confirm-btn.no:hover {
+		background: rgba(255, 255, 255, 0.18);
 	}
 
 	.win-overlay {

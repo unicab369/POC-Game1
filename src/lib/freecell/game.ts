@@ -129,14 +129,14 @@ function emptyTableauCount(state: GameState): number {
 }
 
 /** Max cards that can be moved as a group (supermove) */
-function maxMovable(state: GameState, destIsEmpty: boolean): number {
+export function maxMovable(state: GameState, destIsEmpty: boolean): number {
 	const freeCells = emptyFreeCellCount(state);
 	const emptyCols = emptyTableauCount(state) - (destIsEmpty ? 1 : 0);
 	return (1 + freeCells) * Math.pow(2, emptyCols);
 }
 
 /** Check if a sequence of cards at the bottom of a column is a valid descending alternating-color run */
-function validRun(cards: Card[]): boolean {
+export function validRun(cards: Card[]): boolean {
 	for (let i = 1; i < cards.length; i++) {
 		if (cards[i].rank !== cards[i - 1].rank - 1) return false;
 		if (cardColor(cards[i].suit) === cardColor(cards[i - 1].suit)) return false;
@@ -144,13 +144,13 @@ function validRun(cards: Card[]): boolean {
 	return true;
 }
 
-function canPlaceOnTableau(card: Card, column: Card[]): boolean {
+export function canPlaceOnTableau(card: Card, column: Card[]): boolean {
 	if (column.length === 0) return true;
 	const top = column[column.length - 1];
 	return card.rank === top.rank - 1 && cardColor(card.suit) !== cardColor(top.suit);
 }
 
-function canPlaceOnFoundation(card: Card, state: GameState): number {
+export function canPlaceOnFoundation(card: Card, state: GameState): number {
 	// Returns foundation index or -1
 	for (let i = 0; i < 4; i++) {
 		const pile = state.foundations[i];
@@ -366,6 +366,110 @@ function attemptMove(state: GameState, target: string, index: number): boolean {
 	}
 
 	return false;
+}
+
+/** Execute a move from source to target for drag-and-drop.
+ *  Creates the selection internally, attempts the move, runs autoFoundation.
+ *  Returns new state on success, or null on failure. */
+export function executeMove(
+	state: GameState,
+	source: { type: 'tableau' | 'freecell'; index: number; cardIndex?: number },
+	target: { type: 'tableau' | 'freecell' | 'foundation'; index: number }
+): GameState | null {
+	const newState: GameState = JSON.parse(JSON.stringify(state));
+	if (newState.won) return null;
+
+	// Build selection
+	let cardCount = 1;
+	if (source.type === 'tableau') {
+		const col = newState.tableau[source.index];
+		if (col.length === 0) return null;
+		const ci = source.cardIndex ?? col.length - 1;
+		cardCount = col.length - ci;
+		const cards = col.slice(ci);
+		if (cardCount > 1 && !validRun(cards)) return null;
+	} else {
+		if (!newState.freeCells[source.index]) return null;
+	}
+
+	newState.selected = { source: source.type, index: source.index, cardCount };
+	const result = attemptMove(newState, target.type, target.index);
+	newState.selected = null;
+
+	if (!result) return null;
+
+	newState.moves++;
+	autoFoundation(newState);
+	return newState;
+}
+
+/** Auto-move a card from source to the best available target.
+ *  Priority: foundation > non-empty tableau > empty tableau > free cell.
+ *  Returns new state on success, or null if no valid move exists. */
+export function autoMoveFrom(
+	state: GameState,
+	source: { type: 'tableau' | 'freecell'; index: number; cardIndex?: number }
+): GameState | null {
+	let cards: Card[];
+	if (source.type === 'tableau') {
+		const col = state.tableau[source.index];
+		if (col.length === 0) return null;
+		const ci = source.cardIndex ?? col.length - 1;
+		cards = col.slice(ci);
+		if (cards.length > 1 && !validRun(cards)) return null;
+	} else {
+		if (!state.freeCells[source.index]) return null;
+		cards = [state.freeCells[source.index]!];
+	}
+
+	const topCard = cards[0];
+
+	// 1. Try foundation (single card only)
+	if (cards.length === 1) {
+		const fi = canPlaceOnFoundation(topCard, state);
+		if (fi !== -1) {
+			const result = executeMove(state, source, { type: 'foundation', index: fi });
+			if (result) return result;
+		}
+	}
+
+	// 2. Try non-empty tableau columns
+	for (let i = 0; i < 8; i++) {
+		if (source.type === 'tableau' && source.index === i) continue;
+		const col = state.tableau[i];
+		if (col.length === 0) continue;
+		if (canPlaceOnTableau(topCard, col)) {
+			const limit = maxMovable(state, false);
+			if (cards.length <= limit) {
+				const result = executeMove(state, source, { type: 'tableau', index: i });
+				if (result) return result;
+			}
+		}
+	}
+
+	// 3. Try empty tableau columns
+	for (let i = 0; i < 8; i++) {
+		if (source.type === 'tableau' && source.index === i) continue;
+		if (state.tableau[i].length === 0) {
+			const limit = maxMovable(state, true);
+			if (cards.length <= limit) {
+				const result = executeMove(state, source, { type: 'tableau', index: i });
+				if (result) return result;
+			}
+		}
+	}
+
+	// 4. Try free cells (single card only)
+	if (cards.length === 1) {
+		for (let i = 0; i < 4; i++) {
+			if (state.freeCells[i] === null) {
+				const result = executeMove(state, source, { type: 'freecell', index: i });
+				if (result) return result;
+			}
+		}
+	}
+
+	return null;
 }
 
 export function clearSelection(state: GameState): GameState {
