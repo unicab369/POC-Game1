@@ -4,11 +4,8 @@
 	import Pile from './Pile.svelte';
 	import {
 		newGame,
-		handleClick,
 		drawCard,
-		clearSelection,
 		executeMove,
-		autoMoveFrom,
 		validDescendingRun,
 		canPlaceOnTableau,
 		canPlaceOnFoundation
@@ -36,10 +33,23 @@
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let drag: DragState | null = $state(null);
 	let suppressNextClick = $state(false);
-	let lastTap: { key: string; time: number } | null = null;
-	const DOUBLE_TAP_MS = 400;
+
+	let hint: { source: { type: 'tableau' | 'waste'; index: number; cardIndex?: number }; target: { type: string; index: number } } | null = $state(null);
 
 	let lastDrawnId: string | null = $state(null);
+
+	interface MoveAnim {
+		cards: SolitaireCard[];
+		fromX: number;
+		fromY: number;
+		toX: number;
+		toY: number;
+		started: boolean;
+	}
+	let moveAnim: MoveAnim | null = $state(null);
+	let pendingMoveState: GameState | null = null;
+	let animSource: { type: 'tableau' | 'waste' | 'foundation'; index: number; cardIndex?: number } | null = $state(null);
+	const MOVE_ANIM_MS = 200;
 
 	let shakeTarget: { type: 'tableau' | 'waste'; index: number; cardIndex?: number } | null = $state(null);
 
@@ -48,36 +58,167 @@
 		setTimeout(() => { shakeTarget = null; }, 400);
 	}
 
-	function handleDoubleTap(
+	function getCompactHeight(): number {
+		const piles = document.querySelectorAll('[data-drop="tableau"]');
+		for (const pile of piles) {
+			const ws = pile.querySelectorAll('.card-wrapper');
+			if (ws.length >= 2) {
+				return ws[1].getBoundingClientRect().top - ws[0].getBoundingClientRect().top;
+			}
+		}
+		return 28;
+	}
+
+	function getSourcePos(type: string, index: number, cardIndex?: number): { x: number; y: number } | null {
+		if (type === 'waste') {
+			const wfan = document.querySelector('.waste-fan');
+			if (!wfan) return null;
+			const wCards = wfan.querySelectorAll('.waste-card');
+			const last = wCards[wCards.length - 1];
+			if (last) {
+				const r = last.getBoundingClientRect();
+				return { x: r.left, y: r.top };
+			}
+			return null;
+		}
+		const el = document.querySelector(`[data-drop="${type}"][data-drop-index="${index}"]`);
+		if (!el) return null;
+		if (type === 'tableau' && cardIndex !== undefined) {
+			const ws = el.querySelectorAll('.card-wrapper');
+			if (ws[cardIndex]) {
+				const r = ws[cardIndex].getBoundingClientRect();
+				return { x: r.left, y: r.top };
+			}
+		}
+		const r = el.getBoundingClientRect();
+		return { x: r.left, y: r.top };
+	}
+
+	function getDestPos(type: string, index: number): { x: number; y: number } | null {
+		const el = document.querySelector(`[data-drop="${type}"][data-drop-index="${index}"]`);
+		if (!el) return null;
+		const r = el.getBoundingClientRect();
+		if (type === 'tableau') {
+			const ws = el.querySelectorAll('.card-wrapper');
+			if (ws.length > 0) {
+				const compactH = getCompactHeight();
+				return { x: r.left, y: r.top + ws.length * compactH };
+			}
+		}
+		return { x: r.left, y: r.top };
+	}
+
+	function animateMove(
+		cards: SolitaireCard[],
+		from: { x: number; y: number },
+		to: { x: number; y: number },
+		source: typeof animSource,
+		newState: GameState
+	) {
+		pendingMoveState = newState;
+		animSource = source;
+		moveAnim = { cards, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
+
+		requestAnimationFrame(() => {
+			if (moveAnim) moveAnim.started = true;
+			setTimeout(() => {
+				if (pendingMoveState) {
+					pushHistory();
+					game = pendingMoveState;
+					pendingMoveState = null;
+				}
+				moveAnim = null;
+				animSource = null;
+			}, MOVE_ANIM_MS);
+		});
+	}
+
+	function findAutoTarget(
 		sourceType: 'tableau' | 'waste',
 		index: number,
 		cardIndex?: number
-	): boolean {
-		const now = Date.now();
-		const key = `${sourceType}-${index}-${cardIndex ?? -1}`;
+	): { target: { type: 'tableau' | 'foundation'; index: number }; cards: SolitaireCard[] } | null {
+		let cards: SolitaireCard[];
+		if (sourceType === 'tableau') {
+			const col = game.tableau[index];
+			if (col.length === 0) return null;
+			const ci = cardIndex ?? col.length - 1;
+			cards = col.slice(ci);
+		} else {
+			if (game.waste.length === 0) return null;
+			cards = [game.waste[game.waste.length - 1]];
+		}
+		const topCard = cards[0];
 
-		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
-			lastTap = null;
-			if (history.length === 0) return false;
-
-			// Undo the selection that the first tap caused
-			if (history.length > 0) {
-				game = history[history.length - 1];
-				history = history.slice(0, -1);
+		if (cards.length === 1) {
+			const fi = canPlaceOnFoundation(topCard, game);
+			if (fi !== -1) return { target: { type: 'foundation', index: fi }, cards };
+		}
+		for (let i = 0; i < 7; i++) {
+			if (sourceType === 'tableau' && index === i) continue;
+			if (game.tableau[i].length === 0) continue;
+			if (canPlaceOnTableau(topCard, game.tableau[i]))
+				return { target: { type: 'tableau', index: i }, cards };
+		}
+		if (topCard.rank === 13) {
+			for (let i = 0; i < 7; i++) {
+				if (sourceType === 'tableau' && index === i) continue;
+				if (game.tableau[i].length === 0)
+					return { target: { type: 'tableau', index: i }, cards };
 			}
+		}
+		return null;
+	}
 
-			const result = autoMoveFrom(game, { type: sourceType, index, cardIndex });
-			if (result) {
-				pushHistory();
-				game = result;
-			} else {
-				triggerShake(sourceType, index, cardIndex);
+	function findHint(): void {
+		hint = null;
+		// Check tableau columns
+		for (let col = 0; col < 7; col++) {
+			const pile = game.tableau[col];
+			if (pile.length === 0) continue;
+			for (let ci = pile.length - 1; ci >= 0; ci--) {
+				if (!pile[ci].faceUp) break;
+				const found = findAutoTarget('tableau', col, ci);
+				if (found) {
+					hint = { source: { type: 'tableau', index: col, cardIndex: ci }, target: found.target };
+					setTimeout(() => { hint = null; }, 3000);
+					return;
+				}
 			}
-			return true;
+		}
+		// Check waste
+		if (game.waste.length > 0) {
+			const found = findAutoTarget('waste', 0);
+			if (found) {
+				hint = { source: { type: 'waste', index: 0 }, target: found.target };
+				setTimeout(() => { hint = null; }, 3000);
+				return;
+			}
+		}
+	}
+
+	function autoSolveCard(
+		sourceType: 'tableau' | 'waste',
+		index: number,
+		cardIndex?: number
+	) {
+		const found = findAutoTarget(sourceType, index, cardIndex);
+		if (!found) { triggerShake(sourceType, index, cardIndex); return; }
+
+		const result = executeMove(game, { type: sourceType, index, cardIndex }, found.target);
+		if (!result) { triggerShake(sourceType, index, cardIndex); return; }
+
+		const ci = sourceType === 'tableau' ? (cardIndex ?? game.tableau[index].length - 1) : undefined;
+		const from = getSourcePos(sourceType, index, ci);
+		const to = getDestPos(found.target.type, found.target.index);
+
+		if (!from || !to) {
+			pushHistory();
+			game = result;
+			return;
 		}
 
-		lastTap = { key, time: now };
-		return false;
+		animateMove(found.cards, from, to, { type: sourceType, index, cardIndex: ci }, result);
 	}
 
 	function startTimer() {
@@ -111,36 +252,29 @@
 	}
 
 	function onTableauClick(columnIndex: number, cardIndex: number) {
+		hint = null;
+		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
 		}
-		if (cardIndex >= 0 && handleDoubleTap('tableau', columnIndex, cardIndex)) return;
-		pushHistory();
-		if (cardIndex === -1) {
-			game = handleClick(game, 'tableau', columnIndex);
-		} else {
-			game = handleClick(game, 'tableau', columnIndex, cardIndex);
-		}
+		if (cardIndex < 0) return;
+		autoSolveCard('tableau', columnIndex, cardIndex);
 	}
 
 	function onWasteClick() {
+		hint = null;
+		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
 		}
-		if (handleDoubleTap('waste', 0)) return;
-		pushHistory();
-		game = handleClick(game, 'waste', 0);
+		autoSolveCard('waste', 0);
 	}
 
-	function onFoundationClick(index: number) {
-		if (suppressNextClick) {
-			suppressNextClick = false;
-			return;
-		}
-		pushHistory();
-		game = handleClick(game, 'foundation', index);
+	function onFoundationClick(_index: number) {
+		hint = null;
+		// No action — use drag to move cards back from foundation
 	}
 
 	function onStockClick() {
@@ -195,10 +329,6 @@
 	function onDeselect() {
 		if (showPlayMenu) {
 			showPlayMenu = false;
-			return;
-		}
-		if (game.selected) {
-			game = clearSelection(game);
 		}
 	}
 
@@ -284,10 +414,7 @@
 		if (!drag.isDragging) {
 			if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
 				drag.isDragging = true;
-				if (game.selected) {
-					game = clearSelection(game);
-				}
-			} else {
+				} else {
 				return;
 			}
 		}
@@ -431,7 +558,7 @@
 							/>
 						</div>
 					{/each}
-					{#if drag?.isDragging && drag.source.type === 'waste'}
+					{#if (drag?.isDragging && drag.source.type === 'waste') || animSource?.type === 'waste'}
 						<div class="drag-source-overlay" style="left: calc({(visibleWaste.length - 1)} * var(--waste-fan-offset, 20px))"></div>
 					{/if}
 				{:else}
@@ -461,8 +588,8 @@
 				onCardClick={onTableauClick}
 				onDragStart={onTableauDragStart}
 				isDropTarget={dropTargets.has(`tableau-${i}`)}
-				dragSourceIndex={drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null}
-				dragCardIndex={drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null}
+				dragSourceIndex={(drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null) ?? (animSource?.type === 'tableau' ? animSource.index : null)}
+				dragCardIndex={(drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null) ?? (animSource?.type === 'tableau' && animSource.index === i ? (animSource.cardIndex ?? null) : null)}
 				shakeCardIndex={shakeTarget?.type === 'tableau' && shakeTarget.index === i ? (shakeTarget.cardIndex ?? game.tableau[i].length - 1) : null}
 			/>
 		{/each}
@@ -477,6 +604,21 @@
 			{#each drag.cards as card, i}
 				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 28px));">
 					<CardComponent {card} compact={i < drag.cards.length - 1} />
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- Move Animation Overlay -->
+	{#if moveAnim}
+		<div
+			class="move-anim"
+			class:animating={moveAnim.started}
+			style="left: {moveAnim.fromX}px; top: {moveAnim.fromY}px; --move-tx: {moveAnim.toX - moveAnim.fromX}px; --move-ty: {moveAnim.toY - moveAnim.fromY}px;"
+		>
+			{#each moveAnim.cards as card, i}
+				<div class="drag-card" style="top: calc({i} * var(--card-compact-h, 28px));">
+					<CardComponent {card} compact={i < moveAnim.cards.length - 1} />
 				</div>
 			{/each}
 		</div>
@@ -723,6 +865,21 @@
 	.drag-card {
 		position: absolute;
 		left: 0;
+	}
+
+	/* Move animation */
+	.move-anim {
+		position: fixed;
+		pointer-events: none;
+		z-index: 999;
+		width: var(--card-w, 70px);
+		transform: translate(0, 0);
+		transition: none;
+	}
+
+	.move-anim.animating {
+		transform: translate(var(--move-tx), var(--move-ty));
+		transition: transform 200ms ease-out;
 	}
 
 	.controls {

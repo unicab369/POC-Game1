@@ -4,8 +4,6 @@
 	import Pile from './Pile.svelte';
 	import {
 		newGame,
-		handleClick,
-		clearSelection,
 		executeMove,
 		autoFoundationStep,
 		validRun,
@@ -36,8 +34,7 @@
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let drag: DragState | null = $state(null);
 	let suppressNextClick = $state(false);
-	let lastTap: { key: string; time: number } | null = null;
-	const DOUBLE_TAP_MS = 400;
+	let hint: { source: { type: 'tableau' | 'freecell'; index: number; cardIndex?: number }; target: { type: string; index: number } } | null = $state(null);
 
 	interface MoveAnim {
 		cards: Card[];
@@ -140,6 +137,36 @@
 		return null;
 	}
 
+	function findHint(): void {
+		hint = null;
+		// Check tableau columns
+		for (let col = 0; col < 8; col++) {
+			const pile = game.tableau[col];
+			if (pile.length === 0) continue;
+			// Try from the top of the valid run
+			for (let ci = pile.length - 1; ci >= 0; ci--) {
+				const cards = pile.slice(ci);
+				if (!validRun(cards)) break;
+				const found = findAutoTarget('tableau', col, ci);
+				if (found) {
+					hint = { source: { type: 'tableau', index: col, cardIndex: ci }, target: found.target };
+					setTimeout(() => { hint = null; }, 3000);
+					return;
+				}
+			}
+		}
+		// Check free cells
+		for (let i = 0; i < 4; i++) {
+			if (!game.freeCells[i]) continue;
+			const found = findAutoTarget('freecell', i);
+			if (found) {
+				hint = { source: { type: 'freecell', index: i }, target: found.target };
+				setTimeout(() => { hint = null; }, 3000);
+				return;
+			}
+		}
+	}
+
 	function chainAutoFoundation() {
 		const step = autoFoundationStep(game);
 		if (!step) return;
@@ -168,63 +195,46 @@
 		});
 	}
 
-	function handleDoubleTap(
+	function autoSolveCard(
 		sourceType: 'tableau' | 'freecell',
 		index: number,
 		cardIndex?: number
-	): boolean {
-		if (moveAnim) return true;
-		const now = Date.now();
-		const key = `${sourceType}-${index}-${cardIndex ?? -1}`;
+	) {
+		hint = null;
+		const found = findAutoTarget(sourceType, index, cardIndex);
+		if (!found) { triggerShake(sourceType, index, cardIndex); return; }
 
-		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
-			lastTap = null;
-			if (history.length === 0) return false;
+		const result = executeMove(game, { type: sourceType, index, cardIndex }, found.target, true);
+		if (!result) { triggerShake(sourceType, index, cardIndex); return; }
 
-			if (history.length > 0) {
-				game = history[history.length - 1];
-				history = history.slice(0, -1);
-			}
+		const ci = cardIndex ?? (sourceType === 'tableau' ? game.tableau[index].length - 1 : undefined);
+		const from = getSourcePos(sourceType, index, ci);
+		const to = getDestPos(found.target.type, found.target.index);
 
-			const found = findAutoTarget(sourceType, index, cardIndex);
-			if (!found) { triggerShake(sourceType, index, cardIndex); return true; }
-
-			const result = executeMove(game, { type: sourceType, index, cardIndex }, found.target, true);
-			if (!result) return true;
-
-			const from = getSourcePos(sourceType, index, cardIndex);
-			const to = getDestPos(found.target.type, found.target.index);
-
-			if (!from || !to) {
-				pushHistory();
-				game = result;
-				chainAutoFoundation();
-				return true;
-			}
-
-			pendingMoveState = result;
-			animSource = { type: sourceType, index, cardIndex: cardIndex ?? (sourceType === 'tableau' ? game.tableau[index].length - 1 : undefined) };
-			moveAnim = { cards: found.cards, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
-
-			requestAnimationFrame(() => {
-				if (moveAnim) moveAnim.started = true;
-				setTimeout(() => {
-					if (pendingMoveState) {
-						pushHistory();
-						game = pendingMoveState;
-						pendingMoveState = null;
-					}
-					moveAnim = null;
-					animSource = null;
-					chainAutoFoundation();
-				}, MOVE_ANIM_MS);
-			});
-
-			return true;
+		if (!from || !to) {
+			pushHistory();
+			game = result;
+			chainAutoFoundation();
+			return;
 		}
 
-		lastTap = { key, time: now };
-		return false;
+		pendingMoveState = result;
+		animSource = { type: sourceType, index, cardIndex: ci };
+		moveAnim = { cards: found.cards, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
+
+		requestAnimationFrame(() => {
+			if (moveAnim) moveAnim.started = true;
+			setTimeout(() => {
+				if (pendingMoveState) {
+					pushHistory();
+					game = pendingMoveState;
+					pendingMoveState = null;
+				}
+				moveAnim = null;
+				animSource = null;
+				chainAutoFoundation();
+			}, MOVE_ANIM_MS);
+		});
 	}
 
 	function startTimer() {
@@ -263,15 +273,8 @@
 			suppressNextClick = false;
 			return;
 		}
-		if (cardIndex >= 0 && handleDoubleTap('tableau', columnIndex, cardIndex)) return;
-		const prevMoves = game.moves;
-		pushHistory();
-		if (cardIndex === -1) {
-			game = handleClick(game, 'tableau', columnIndex, undefined, true);
-		} else {
-			game = handleClick(game, 'tableau', columnIndex, cardIndex, true);
-		}
-		if (game.moves > prevMoves) chainAutoFoundation();
+		if (cardIndex < 0) return;
+		autoSolveCard('tableau', columnIndex, cardIndex);
 	}
 
 	function onFreeCellClick(index: number) {
@@ -280,22 +283,12 @@
 			suppressNextClick = false;
 			return;
 		}
-		if (handleDoubleTap('freecell', index)) return;
-		const prevMoves = game.moves;
-		pushHistory();
-		game = handleClick(game, 'freecell', index, undefined, true);
-		if (game.moves > prevMoves) chainAutoFoundation();
+		if (!game.freeCells[index]) return;
+		autoSolveCard('freecell', index);
 	}
 
-	function onFoundationClick(index: number) {
-		if (moveAnim) return;
-		if (suppressNextClick) {
-			suppressNextClick = false;
-			return;
-		}
-		const prevMoves = game.moves;
-		pushHistory();
-		game = handleClick(game, 'foundation', index, undefined, true);
+	function onFoundationClick(_index: number) {
+		// No action — use drag to move cards back from foundation
 		if (game.moves > prevMoves) chainAutoFoundation();
 	}
 
@@ -337,10 +330,6 @@
 	function onDeselect() {
 		if (showPlayMenu) {
 			showPlayMenu = false;
-			return;
-		}
-		if (game.selected) {
-			game = clearSelection(game);
 		}
 	}
 
@@ -426,10 +415,6 @@
 		if (!drag.isDragging) {
 			if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
 				drag.isDragging = true;
-				// Clear any selection when starting a drag
-				if (game.selected) {
-					game = clearSelection(game);
-				}
 			} else {
 				return;
 			}
@@ -522,6 +507,18 @@
 	// Overlay position
 	const overlayLeft = $derived(drag && drag.isDragging ? drag.currentX - drag.offsetX : 0);
 	const overlayTop = $derived(drag && drag.isDragging ? drag.currentY - drag.offsetY : 0);
+
+	// Compute where the valid run starts from the bottom of each column
+	const runStartIndices = $derived.by(() => {
+		return game.tableau.map((col) => {
+			if (col.length <= 1) return 0;
+			let start = col.length - 1;
+			while (start > 0 && validRun(col.slice(start - 1))) {
+				start--;
+			}
+			return start;
+		});
+	});
 </script>
 
 <svelte:window
@@ -617,6 +614,7 @@
 				dragSourceIndex={(drag?.isDragging && drag.source.type === 'tableau' ? drag.source.index : null) ?? (animSource?.type === 'tableau' ? animSource.index : null)}
 				dragCardIndex={(drag?.isDragging && drag.source.type === 'tableau' && drag.source.index === i ? (drag.source.cardIndex ?? null) : null) ?? (animSource?.type === 'tableau' && animSource.index === i ? (animSource.cardIndex ?? null) : null)}
 				shakeCardIndex={shakeTarget?.type === 'tableau' && shakeTarget.index === i ? (shakeTarget.cardIndex ?? game.tableau[i].length - 1) : null}
+				runStartIndex={runStartIndices[i]}
 			/>
 		{/each}
 	</div>

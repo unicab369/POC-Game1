@@ -12,6 +12,7 @@
 		dragSourceIndex?: number | null;
 		dragCardIndex?: number | null;
 		shakeCardIndex?: number | null;
+		hintCardIndex?: number | null;
 	}
 
 	let {
@@ -23,7 +24,8 @@
 		isDropTarget = false,
 		dragSourceIndex = null,
 		dragCardIndex = null,
-		shakeCardIndex = null
+		shakeCardIndex = null,
+		hintCardIndex = null
 	}: Props = $props();
 
 	function isSelected(cardIdx: number): boolean {
@@ -55,6 +57,7 @@
 				class="card-wrapper"
 				class:drag-source={isDragSource(i)}
 				class:shake={shakeCardIndex !== null && i >= shakeCardIndex}
+				class:hint={hintCardIndex !== null && i >= hintCardIndex}
 				style="top: calc({i} * var(--card-compact-h, 28px))"
 			>
 				<CardComponent
@@ -99,6 +102,15 @@
 
 	.card-wrapper.shake {
 		animation: shake 0.35s ease-out;
+	}
+
+	.card-wrapper.hint {
+		animation: hint-pulse 1s ease-in-out infinite;
+	}
+
+	@keyframes hint-pulse {
+		0%, 100% { filter: brightness(1); }
+		50% { filter: brightness(1.3) drop-shadow(0 0 8px rgba(241, 196, 15, 0.8)); }
 	}
 
 	@keyframes shake {

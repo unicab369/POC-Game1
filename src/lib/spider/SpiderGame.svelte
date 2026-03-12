@@ -4,11 +4,8 @@
 	import Pile from './Pile.svelte';
 	import {
 		newGame,
-		handleClick,
 		dealFromStock,
-		clearSelection,
 		executeMove,
-		autoMoveFrom,
 		validDescendingRun,
 		canPlaceOnTableau
 	} from './game';
@@ -36,8 +33,7 @@
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let drag: DragState | null = $state(null);
 	let suppressNextClick = $state(false);
-	let lastTap: { key: string; time: number } | null = null;
-	const DOUBLE_TAP_MS = 400;
+	let hint: { sourceIndex: number; cardIndex: number; destIndex: number } | null = $state(null);
 
 	interface MoveAnim {
 		cards: SpiderCard[];
@@ -126,6 +122,26 @@
 		return null;
 	}
 
+	function findHint(): void {
+		hint = null;
+		for (let col = 0; col < 10; col++) {
+			const pile = game.tableau[col];
+			if (pile.length === 0) continue;
+			// Find the top of the valid run from the bottom
+			for (let ci = pile.length - 1; ci >= 0; ci--) {
+				if (!pile[ci].faceUp) break;
+				const cards = pile.slice(ci);
+				if (!validDescendingRun(cards)) break;
+				const found = findAutoTarget(col, ci);
+				if (found) {
+					hint = { sourceIndex: col, cardIndex: ci, destIndex: found.destIndex };
+					setTimeout(() => { hint = null; }, 3000);
+					return;
+				}
+			}
+		}
+	}
+
 	function startTimer() {
 		stopTimer();
 		elapsed = 0;
@@ -159,77 +175,48 @@
 		history = [...history, structuredClone($state.snapshot(game))];
 	}
 
-	function handleDoubleTap(
-		sourceIndex: number,
-		cardIndex: number
-	): boolean {
-		if (moveAnim) return true;
-		const now = Date.now();
-		const key = `tableau-${sourceIndex}-${cardIndex}`;
-
-		if (lastTap && lastTap.key === key && now - lastTap.time < DOUBLE_TAP_MS) {
-			lastTap = null;
-			if (history.length === 0) return false;
-
-			if (history.length > 0) {
-				game = history[history.length - 1];
-				history = history.slice(0, -1);
-			}
-
-			const found = findAutoTarget(sourceIndex, cardIndex);
-			if (!found) { triggerShake(sourceIndex, cardIndex); return true; }
-
-			const result = executeMove(game, sourceIndex, cardIndex, found.destIndex);
-			if (!result) return true;
-
-			const from = getSourcePos(sourceIndex, cardIndex);
-			const to = getDestPos(found.destIndex);
-
-			if (!from || !to) {
-				pushHistory();
-				game = result;
-				return true;
-			}
-
-			pendingMoveState = result;
-			animSourceIndex = sourceIndex;
-			animCardIndex = cardIndex;
-			moveAnim = { cards: found.cards, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
-
-			requestAnimationFrame(() => {
-				if (moveAnim) moveAnim.started = true;
-				setTimeout(() => {
-					if (pendingMoveState) {
-						pushHistory();
-						game = pendingMoveState;
-						pendingMoveState = null;
-					}
-					moveAnim = null;
-					animSourceIndex = null;
-					animCardIndex = null;
-				}, MOVE_ANIM_MS);
-			});
-
-			return true;
-		}
-
-		lastTap = { key, time: now };
-		return false;
-	}
-
 	function onTableauClick(columnIndex: number, cardIndex: number) {
+		hint = null;
 		if (moveAnim) return;
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
 		}
-		if (cardIndex >= 0 && handleDoubleTap(columnIndex, cardIndex)) return;
-		pushHistory();
-		if (cardIndex === -1) {
-			game = handleClick(game, 'tableau', columnIndex);
-		} else {
-			game = handleClick(game, 'tableau', columnIndex, cardIndex);
+		if (cardIndex < 0) return;
+
+		const found = findAutoTarget(columnIndex, cardIndex);
+		if (!found) { triggerShake(columnIndex, cardIndex); return; }
+
+		const result = executeMove(game, columnIndex, cardIndex, found.destIndex);
+		if (!result) { triggerShake(columnIndex, cardIndex); return; }
+
+		const from = getSourcePos(columnIndex, cardIndex);
+		const to = getDestPos(found.destIndex);
+
+		if (!from || !to) {
+			pushHistory();
+			game = result;
+			return;
 		}
+
+		pendingMoveState = result;
+		animSourceIndex = columnIndex;
+		animCardIndex = cardIndex;
+		moveAnim = { cards: found.cards, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, started: false };
+
+		requestAnimationFrame(() => {
+			if (moveAnim) moveAnim.started = true;
+			setTimeout(() => {
+				if (pendingMoveState) {
+					pushHistory();
+					game = pendingMoveState;
+					pendingMoveState = null;
+				}
+				moveAnim = null;
+				animSourceIndex = null;
+				animCardIndex = null;
+			}, MOVE_ANIM_MS);
+		});
 	}
 
 	function onStockClick() {
@@ -238,6 +225,7 @@
 	}
 
 	function onNewGame() {
+		hint = null;
 		game = newGame();
 		initialGame = structuredClone($state.snapshot(game));
 		history = [];
@@ -275,10 +263,6 @@
 	function onDeselect() {
 		if (showPlayMenu) {
 			showPlayMenu = false;
-			return;
-		}
-		if (game.selected) {
-			game = clearSelection(game);
 		}
 	}
 
@@ -326,10 +310,7 @@
 		if (!drag.isDragging) {
 			if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
 				drag.isDragging = true;
-				if (game.selected) {
-					game = clearSelection(game);
-				}
-			} else {
+				} else {
 				return;
 			}
 		}
@@ -427,13 +408,17 @@
 
 		<!-- Stock -->
 		{#if game.stock.length > 0}
-			<div class="stock-wrapper" class:stock-disabled={hasEmptyColumn}>
-				<CardComponent
-					card={game.stock[game.stock.length - 1]}
-					faceDown={true}
-					onclick={hasEmptyColumn ? undefined : onStockClick}
-				/>
-				<span class="deal-badge">{dealsRemaining}</span>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="stock-fan" class:stock-disabled={hasEmptyColumn} onclick={hasEmptyColumn ? undefined : onStockClick}>
+				{#each Array(dealsRemaining) as _, i}
+					<div class="stock-card" style="left: calc({i} * var(--stock-fan-offset, 6px))">
+						<CardComponent
+							card={game.stock[i * 10]}
+							faceDown={true}
+						/>
+					</div>
+				{/each}
 			</div>
 		{:else}
 			<div class="slot"></div>
@@ -453,6 +438,7 @@
 				dragSourceIndex={(drag?.isDragging ? drag.sourceIndex : null) ?? animSourceIndex}
 				dragCardIndex={(drag?.isDragging && drag.sourceIndex === i ? drag.cardIndex : null) ?? (animSourceIndex === i ? animCardIndex : null)}
 				shakeCardIndex={shakeTarget?.col === i ? shakeTarget.cardIndex : null}
+			hintCardIndex={hint && hint.sourceIndex === i ? hint.cardIndex : null}
 			/>
 		{/each}
 	</div>
@@ -499,6 +485,7 @@
 
 <!-- Controls -->
 <div class="controls">
+	<button class="btn btn-secondary" onclick={findHint} disabled={game.won}>Hint</button>
 	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}>Undo</button>
 	<div class="play-menu-wrapper">
 		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; }}>Play &#9662;</button>
@@ -651,36 +638,28 @@
 		cursor: not-allowed;
 	}
 
-	.stock-wrapper {
+	.stock-fan {
+		--stock-fan-offset: 6px;
 		position: relative;
+		width: calc(var(--card-w, 60px) + 4 * var(--stock-fan-offset));
+		height: var(--card-h, 86px);
 		cursor: pointer;
+		flex-shrink: 0;
 	}
 
-	.stock-wrapper.stock-disabled {
+	.stock-fan.stock-disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
 
-	.slot-label {
-		font-size: 0.7rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+	.stock-card {
+		position: absolute;
+		top: 0;
 	}
 
-	.deal-badge {
-		position: absolute;
-		bottom: -6px;
-		right: -6px;
-		background: var(--accent, #e94560);
-		color: white;
-		font-size: 0.7rem;
-		font-weight: 700;
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+	.stock-card:not(:last-child) {
+		width: var(--stock-fan-offset, 6px);
+		overflow: hidden;
 	}
 
 	.tableau {
@@ -896,6 +875,11 @@
 		.completed {
 			font-size: 1rem;
 			gap: 2px;
+		}
+
+		.stock-fan {
+			--stock-fan-offset: 4px;
+			width: calc(var(--card-w) + 4 * var(--stock-fan-offset));
 		}
 	}
 </style>
