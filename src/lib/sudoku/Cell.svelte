@@ -75,7 +75,12 @@
 	}
 
 	.cell.same-number {
-		background: rgba(0, 200, 255, 0.15);
+		background: rgba(0, 200, 255, 0.2);
+		box-shadow: inset 0 0 0 1px rgba(0, 229, 255, 0.35);
+	}
+
+	.cell.same-number .value {
+		text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
 	}
 
 	.cell.selected {

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CardComponent } from '$lib/cards';
 	import type { SpiderCard } from './game';
-	import Pile from './Pile.svelte';
+	import { Pile } from '$lib/cards';
 	import {
 		newGame,
 		dealFromStock,
@@ -513,6 +513,17 @@
 		return targets;
 	});
 
+	const runStartIndices = $derived.by(() => {
+		return game.tableau.map((col) => {
+			if (col.length <= 1) return 0;
+			let start = col.length - 1;
+			while (start > 0 && validDescendingRun(col.slice(start - 1))) {
+				start--;
+			}
+			return start;
+		});
+	});
+
 	const overlayLeft = $derived(drag && drag.isDragging ? drag.currentX - drag.offsetX : 0);
 	const overlayTop = $derived(drag && drag.isDragging ? drag.currentY - drag.offsetY : 0);
 </script>
@@ -583,6 +594,7 @@
 				dragCardIndex={(drag?.isDragging && drag.sourceIndex === i ? drag.cardIndex : null) ?? (animSourceIndex === i ? animCardIndex : null)}
 				shakeCardIndex={shakeTarget?.col === i ? shakeTarget.cardIndex : null}
 				hintCardIndex={hint && hint.sourceIndex === i ? hint.cardIndex : null}
+				runStartIndex={runStartIndices[i]}
 			/>
 		{/each}
 	</div>

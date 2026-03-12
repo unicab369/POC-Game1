@@ -95,6 +95,16 @@
 		return false;
 	}
 
+	// Track the last non-zero number selected for persistent highlighting
+	let highlightedNumber = $state(0);
+
+	$effect(() => {
+		if (game.selected) {
+			const v = game.grid[game.selected.row][game.selected.col].value;
+			if (v !== 0) highlightedNumber = v;
+		}
+	});
+
 	// Number completion check
 	const completedNumbers = $derived.by(() => {
 		const counts = new Array(10).fill(0);
@@ -233,10 +243,9 @@
 						isHighlightedRegion={game.selected !== null &&
 							!(game.selected.row === r && game.selected.col === c) &&
 							isSameRegion(game.selected.row, game.selected.col, r, c)}
-						isSameNumber={game.selected !== null &&
-							!(game.selected.row === r && game.selected.col === c) &&
-							cell.value !== 0 &&
-							cell.value === game.grid[game.selected.row][game.selected.col].value}
+						isSameNumber={highlightedNumber !== 0 &&
+							!(game.selected?.row === r && game.selected?.col === c) &&
+							cell.value === highlightedNumber}
 						hasConflict={game.showErrors && hasConflict(game.grid, r, c)}
 						isIncorrect={game.showErrors && isIncorrect(game, r, c)}
 						onclick={() => onCellClick(r, c)}
@@ -273,6 +282,7 @@
 			class="action-btn"
 			class:active={game.notesMode}
 			onclick={onToggleNotes}
+			disabled={game.won || (game.selected !== null && game.grid[game.selected.row][game.selected.col].value !== 0)}
 		>
 			Notes
 		</button>
@@ -394,6 +404,13 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		margin-bottom: 0.75rem;
+		cursor: pointer;
+		border: none;
+		transition: filter 0.15s;
+	}
+
+	.difficulty-badge:hover {
+		filter: brightness(1.2);
 	}
 
 	.grid-wrapper {

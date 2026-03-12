@@ -1,19 +1,27 @@
 <script lang="ts">
-	import { CardComponent, type Card } from '$lib/cards';
-	import type { Selection } from './game';
+	import CardComponent from './Card.svelte';
+	import type { Card } from './types';
+
+	type PileCard = Card & { faceUp?: boolean };
+
+	interface PileSelection {
+		source: string;
+		index: number;
+		cardCount: number;
+	}
 
 	interface Props {
-		cards: Card[];
+		cards: PileCard[];
 		columnIndex: number;
-		selected: Selection | null;
+		selected: PileSelection | null;
 		onCardClick: (columnIndex: number, cardIndex: number) => void;
 		onDragStart?: (columnIndex: number, cardIndex: number, e: PointerEvent) => void;
 		isDropTarget?: boolean;
 		dragSourceIndex?: number | null;
 		dragCardIndex?: number | null;
 		shakeCardIndex?: number | null;
-		runStartIndex?: number;
 		hintCardIndex?: number | null;
+		runStartIndex?: number;
 	}
 
 	let {
@@ -26,9 +34,13 @@
 		dragSourceIndex = null,
 		dragCardIndex = null,
 		shakeCardIndex = null,
-		runStartIndex = 0,
-		hintCardIndex = null
+		hintCardIndex = null,
+		runStartIndex = 0
 	}: Props = $props();
+
+	function isFaceUp(card: PileCard): boolean {
+		return card.faceUp !== false;
+	}
 
 	function isSelected(cardIdx: number): boolean {
 		if (!selected) return false;
@@ -58,17 +70,20 @@
 			<div
 				class="card-wrapper"
 				class:drag-source={isDragSource(i)}
-				class:dimmed={i < runStartIndex}
+				class:dimmed={isFaceUp(card) && i < runStartIndex}
 				class:shake={shakeCardIndex !== null && i >= shakeCardIndex}
 				class:hint={hintCardIndex !== null && i >= hintCardIndex}
 				style="top: calc({i} * var(--card-compact-h, 28px))"
 			>
 				<CardComponent
 					{card}
+					faceDown={!isFaceUp(card)}
 					selected={isSelected(i)}
 					compact={i < cards.length - 1}
-					onclick={() => onCardClick(columnIndex, i)}
-					onpointerdown={onDragStart
+					onclick={() => {
+						if (isFaceUp(card)) onCardClick(columnIndex, i);
+					}}
+					onpointerdown={onDragStart && isFaceUp(card)
 						? (e: PointerEvent) => onDragStart!(columnIndex, i, e)
 						: undefined}
 				/>

@@ -126,63 +126,7 @@ function checkAndRemoveCompletedRuns(state: GameState): void {
 	}
 }
 
-export function handleClick(
-	state: GameState,
-	target: 'tableau',
-	index: number,
-	cardIndex?: number
-): GameState {
-	const newState: GameState = JSON.parse(JSON.stringify(state));
-
-	if (newState.won) return newState;
-
-	if (newState.selected) {
-		const result = attemptMove(newState, index);
-		newState.selected = null;
-		if (result) {
-			newState.moves++;
-			flipTopCards(newState);
-			checkAndRemoveCompletedRuns(newState);
-		}
-		return newState;
-	}
-
-	// Select a card
-	const col = newState.tableau[index];
-	if (col.length === 0) return newState;
-
-	if (cardIndex === undefined) cardIndex = col.length - 1;
-
-	const card = col[cardIndex];
-	if (!card.faceUp) return newState;
-
-	const count = col.length - cardIndex;
-	const cards = col.slice(cardIndex);
-
-	if (validDescendingRun(cards)) {
-		newState.selected = { source: 'tableau', index, cardCount: count };
-	}
-
-	return newState;
-}
-
-function attemptMove(state: GameState, destIndex: number): boolean {
-	const sel = state.selected!;
-	const col = state.tableau[sel.index];
-	const cards = col.slice(col.length - sel.cardCount);
-	const topCard = cards[0];
-	const destCol = state.tableau[destIndex];
-
-	if (sel.index === destIndex) return false;
-
-	if (!canPlaceOnTableau(topCard, destCol)) return false;
-
-	state.tableau[sel.index].splice(state.tableau[sel.index].length - sel.cardCount);
-	destCol.push(...cards);
-	return true;
-}
-
-/** Execute a move from source to destination column for drag-and-drop. */
+/** Execute a move from source to destination column. */
 export function executeMove(
 	state: GameState,
 	sourceIndex: number,
@@ -241,53 +185,3 @@ export function applyCompletedRunRemoval(state: GameState): GameState {
 	return newState;
 }
 
-/** Auto-move a card run to the best available column.
- *  Priority: same-suit non-empty > any non-empty > empty column. */
-export function autoMoveFrom(
-	state: GameState,
-	sourceIndex: number,
-	sourceCardIndex: number
-): GameState | null {
-	const col = state.tableau[sourceIndex];
-	if (col.length === 0) return null;
-
-	const cards = col.slice(sourceCardIndex);
-	if (!validDescendingRun(cards)) return null;
-
-	const topCard = cards[0];
-
-	// 1. Try non-empty columns with same-suit match (best move)
-	for (let i = 0; i < 10; i++) {
-		if (i === sourceIndex) continue;
-		const dest = state.tableau[i];
-		if (dest.length === 0) continue;
-		const destTop = dest[dest.length - 1];
-		if (topCard.rank === destTop.rank - 1 && topCard.suit === destTop.suit) {
-			return executeMove(state, sourceIndex, sourceCardIndex, i);
-		}
-	}
-
-	// 2. Try non-empty columns with any rank match
-	for (let i = 0; i < 10; i++) {
-		if (i === sourceIndex) continue;
-		const dest = state.tableau[i];
-		if (dest.length === 0) continue;
-		if (canPlaceOnTableau(topCard, dest)) {
-			return executeMove(state, sourceIndex, sourceCardIndex, i);
-		}
-	}
-
-	// 3. Try empty columns
-	for (let i = 0; i < 10; i++) {
-		if (i === sourceIndex) continue;
-		if (state.tableau[i].length === 0) {
-			return executeMove(state, sourceIndex, sourceCardIndex, i);
-		}
-	}
-
-	return null;
-}
-
-export function clearSelection(state: GameState): GameState {
-	return { ...state, selected: null };
-}

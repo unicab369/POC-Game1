@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CardComponent, suitSymbol } from '$lib/cards';
 	import type { Card } from '$lib/cards';
-	import Pile from './Pile.svelte';
+	import { Pile } from '$lib/cards';
 	import {
 		newGame,
 		executeMove,

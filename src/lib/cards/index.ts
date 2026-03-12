@@ -10,3 +10,4 @@ export {
 	shuffle
 } from './utils';
 export { default as CardComponent } from './Card.svelte';
+export { default as Pile } from './Pile.svelte';
