@@ -71,6 +71,13 @@
 		height: var(--card-compact-h, 28px);
 		overflow: hidden;
 		border-radius: 6px 6px 0 0;
+		border-bottom: none;
+	}
+
+	.card.compact .card-back {
+		border-radius: 3px 3px 0 0;
+		border-bottom: none;
+		inset: 3px 3px 0 3px;
 	}
 
 	.card.compact .suit-big,

@@ -113,12 +113,13 @@
 	}
 
 	.card-wrapper.hint {
-		animation: hint-pulse 1s ease-in-out infinite;
+		animation: hint-pulse 0.8s ease-in-out infinite;
+		z-index: 5;
 	}
 
 	@keyframes hint-pulse {
-		0%, 100% { filter: brightness(1); }
-		50% { filter: brightness(1.3) drop-shadow(0 0 8px rgba(241, 196, 15, 0.8)); }
+		0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 200, 0, 0.8)); }
+		50% { filter: drop-shadow(0 0 5px rgba(255, 200, 0, 1)) brightness(1.1); }
 	}
 
 	.empty-slot {
