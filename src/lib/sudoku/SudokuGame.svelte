@@ -31,10 +31,11 @@
 				'--su-same-glow': 'rgba(80,144,255,0.6)',
 				'--su-selected-bg': 'rgba(80,144,255,0.4)',
 				'--su-selected-border': 'rgba(90,160,255,0.9)',
-				'--su-notes-selected-bg': 'rgba(100,180,255,0.3)',
-				'--su-notes-selected-border': 'rgba(100,180,255,0.7)',
-				'--su-notes-highlight-bg': 'rgba(100,180,255,0.12)',
+				'--su-notes-selected-bg': 'rgba(255,200,100,0.25)',
+				'--su-notes-selected-border': 'rgba(255,200,100,0.65)',
+				'--su-notes-highlight-bg': 'rgba(255,200,100,0.08)',
 				'--su-user-color': '#6cc8ff',
+				'--su-note-color': 'rgba(255,200,100,0.7)',
 				'--su-error-color': '#ff5070'
 			}
 		},
@@ -48,10 +49,11 @@
 				'--su-same-glow': 'rgba(255,160,48,0.6)',
 				'--su-selected-bg': 'rgba(255,160,48,0.38)',
 				'--su-selected-border': 'rgba(255,175,70,0.9)',
-				'--su-notes-selected-bg': 'rgba(255,200,80,0.28)',
-				'--su-notes-selected-border': 'rgba(255,200,80,0.65)',
-				'--su-notes-highlight-bg': 'rgba(255,200,80,0.1)',
+				'--su-notes-selected-bg': 'rgba(100,200,255,0.25)',
+				'--su-notes-selected-border': 'rgba(100,200,255,0.65)',
+				'--su-notes-highlight-bg': 'rgba(100,200,255,0.08)',
 				'--su-user-color': '#ffd060',
+				'--su-note-color': 'rgba(100,200,255,0.7)',
 				'--su-error-color': '#ff5070'
 			}
 		},
@@ -65,10 +67,11 @@
 				'--su-same-glow': 'rgba(48,216,136,0.6)',
 				'--su-selected-bg': 'rgba(48,216,136,0.36)',
 				'--su-selected-border': 'rgba(60,230,150,0.85)',
-				'--su-notes-selected-bg': 'rgba(80,230,170,0.28)',
-				'--su-notes-selected-border': 'rgba(80,230,170,0.65)',
-				'--su-notes-highlight-bg': 'rgba(80,230,170,0.1)',
+				'--su-notes-selected-bg': 'rgba(255,180,100,0.25)',
+				'--su-notes-selected-border': 'rgba(255,180,100,0.65)',
+				'--su-notes-highlight-bg': 'rgba(255,180,100,0.08)',
 				'--su-user-color': '#60f0b8',
+				'--su-note-color': 'rgba(255,180,100,0.7)',
 				'--su-error-color': '#ff5070'
 			}
 		},
@@ -82,10 +85,11 @@
 				'--su-same-glow': 'rgba(255,96,144,0.6)',
 				'--su-selected-bg': 'rgba(255,96,144,0.36)',
 				'--su-selected-border': 'rgba(255,120,160,0.85)',
-				'--su-notes-selected-bg': 'rgba(255,140,180,0.28)',
-				'--su-notes-selected-border': 'rgba(255,140,180,0.65)',
-				'--su-notes-highlight-bg': 'rgba(255,140,180,0.1)',
+				'--su-notes-selected-bg': 'rgba(100,220,180,0.25)',
+				'--su-notes-selected-border': 'rgba(100,220,180,0.65)',
+				'--su-notes-highlight-bg': 'rgba(100,220,180,0.08)',
 				'--su-user-color': '#ffb0c8',
+				'--su-note-color': 'rgba(100,220,180,0.7)',
 				'--su-error-color': '#e03030'
 			}
 		},
@@ -99,10 +103,11 @@
 				'--su-same-glow': 'rgba(160,96,255,0.6)',
 				'--su-selected-bg': 'rgba(160,96,255,0.38)',
 				'--su-selected-border': 'rgba(175,120,255,0.88)',
-				'--su-notes-selected-bg': 'rgba(190,150,255,0.28)',
-				'--su-notes-selected-border': 'rgba(190,150,255,0.65)',
-				'--su-notes-highlight-bg': 'rgba(190,150,255,0.1)',
+				'--su-notes-selected-bg': 'rgba(255,200,100,0.25)',
+				'--su-notes-selected-border': 'rgba(255,200,100,0.65)',
+				'--su-notes-highlight-bg': 'rgba(255,200,100,0.08)',
 				'--su-user-color': '#c8a8ff',
+				'--su-note-color': 'rgba(255,200,100,0.7)',
 				'--su-error-color': '#ff5070'
 			}
 		}
@@ -117,6 +122,36 @@
 			.map(([k, v]) => `${k}:${v}`)
 			.join(';')
 	);
+
+	const tips = [
+		{ text: 'Double-tap an empty cell to switch between Notes and Regular mode.', key: 'tip_doubletap' },
+		{ text: 'In Regular mode, tap a number on the bottom row to cycle through cells with that number.', key: 'tip_numcycle' }
+	];
+	let tipIndex = $state(0);
+	let tipVersion = $state(0);
+
+	const isBrowser = typeof window !== 'undefined';
+
+	function getTipCount(key: string): number {
+		if (!isBrowser) return 0;
+		return parseInt(localStorage.getItem(key) || '0', 10);
+	}
+
+	function incrementTip(key: string) {
+		if (!isBrowser) return;
+		const count = getTipCount(key) + 1;
+		localStorage.setItem(key, String(count));
+		tipVersion++;
+	}
+
+	const visibleTip = $derived.by(() => {
+		void tipVersion;
+		for (let i = 0; i < tips.length; i++) {
+			const idx = (tipIndex + i) % tips.length;
+			if (getTipCount(tips[idx].key) < 3) return tips[idx];
+		}
+		return null;
+	});
 
 	let game: GameState = $state(newGame('easy'));
 	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
@@ -186,8 +221,10 @@
 			lastCellTap = null;
 			if (game.notesMode) {
 				game = toggleNotesMode(game);
+				incrementTip('tip_doubletap');
 			} else if (cell.value === 0 && !cell.given) {
 				game = toggleNotesMode(game);
+				incrementTip('tip_doubletap');
 			}
 			game = selectCell(game, row, col);
 			return;
@@ -218,6 +255,7 @@
 		// If no cell selected, or selected cell has a value, switch highlight
 		if (!game.selected || game.grid[game.selected.row][game.selected.col].value !== 0) {
 			selectFirstCellWithNumber(num);
+			incrementTip('tip_numcycle');
 			return;
 		}
 
@@ -307,6 +345,7 @@
 		showPlayMenu = false;
 		pickingDifficulty = false;
 		pendingAction = null;
+		tipIndex = (tipIndex + 1) % tips.length;
 		startTimer();
 	}
 
@@ -314,6 +353,7 @@
 		game = structuredClone($state.snapshot(initialGame));
 		history = [];
 		showPlayMenu = false;
+		tipIndex = (tipIndex + 1) % tips.length;
 		startTimer();
 	}
 
@@ -433,6 +473,10 @@
 		{difficultyLabel[game.difficulty]}
 	</div>
 
+	<div class="tip" class:tip-hidden={!visibleTip}>
+		{#if visibleTip}&#128161; {visibleTip.text}{/if}
+	</div>
+
 	<div class="game-content">
 	<!-- 9x9 Grid -->
 	<div class="grid-wrapper">
@@ -513,7 +557,7 @@
 	{#if showSettings}
 		<div class="settings-backdrop" onclick={() => { showSettings = false; }}></div>
 		<div class="settings-popup">
-			<span class="settings-title">Theme</span>
+			<span class="settings-section-title">Theme</span>
 			<div class="scheme-list">
 				{#each colorSchemes as scheme, i}
 					<button
@@ -529,6 +573,8 @@
 					</button>
 				{/each}
 			</div>
+			<span class="settings-section-title">Options</span>
+			<button class="settings-option" onclick={() => { tips.forEach(t => { if (isBrowser) localStorage.removeItem(t.key); }); tipVersion++; }}>Reset Tips</button>
 			<button class="settings-close-btn" onclick={() => { showSettings = false; }}>Close</button>
 		</div>
 	{/if}
@@ -548,10 +594,10 @@
 
 <!-- Controls -->
 <div class="controls">
-	<button class="btn btn-secondary" onclick={() => { showSettings = !showSettings; if (showSettings) selectPreviewCell(); }}>&#9881;</button>
-	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}>Undo</button>
+	<button class="btn btn-secondary" onclick={() => { showSettings = !showSettings; if (showSettings) selectPreviewCell(); }}><span class="btn-icon">&#9881;&#65039;</span> Settings</button>
+	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}><span class="btn-icon">&#8634;</span> Undo</button>
 	<div class="play-menu-wrapper">
-		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; pickingDifficulty = false; }}>Play &#9662;</button>
+		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; pickingDifficulty = false; }}><span class="btn-icon">&#9654;&#65039;</span> Play</button>
 		{#if showPlayMenu}
 			<div class="play-menu">
 				{#if pendingAction}
@@ -665,6 +711,19 @@
 		filter: brightness(1.2);
 	}
 
+	.tip {
+		font-size: 1.5rem;
+		color: var(--text-muted);
+		margin-bottom: 0.5rem;
+		min-height: 4.2rem;
+		line-height: 1.4;
+		text-align: center;
+	}
+
+	.tip.tip-hidden {
+		visibility: hidden;
+	}
+
 	.grid-wrapper {
 		display: flex;
 		justify-content: center;
@@ -766,9 +825,9 @@
 	}
 
 	.action-btn.notes-active {
-		background: rgba(0, 200, 255, 0.15);
-		color: #5be0f7;
-		border-color: rgba(0, 200, 255, 0.3);
+		background: var(--su-notes-selected-bg);
+		color: var(--su-notes-selected-border);
+		border-color: var(--su-notes-selected-border);
 	}
 
 	.controls {
@@ -798,6 +857,12 @@
 		text-decoration: none;
 		display: inline-flex;
 		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.btn-icon {
+		font-size: 1.1rem;
+		line-height: 1;
 	}
 
 	.btn:hover {
@@ -875,8 +940,8 @@
 
 	.confirm-label {
 		display: block;
-		padding: 1rem 1.5rem 0.5rem;
-		font-size: 1.1rem;
+		padding: 1.5rem 2rem 0.75rem;
+		font-size: 1.4rem;
 		font-weight: 700;
 		color: var(--text-secondary);
 		text-align: center;
@@ -884,16 +949,16 @@
 
 	.confirm-buttons {
 		display: flex;
-		gap: 0.75rem;
-		padding: 0.5rem 1.5rem 1rem;
+		gap: 1rem;
+		padding: 0.75rem 2rem 1.5rem;
 		justify-content: center;
 	}
 
 	.confirm-btn {
-		padding: 0.5rem 1.5rem;
+		padding: 0.75rem 2.5rem;
 		border: none;
 		border-radius: 8px;
-		font-size: 1.05rem;
+		font-size: 1.25rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: background 0.15s;
@@ -956,26 +1021,48 @@
 	.settings-popup {
 		position: fixed;
 		bottom: 0;
-		left: 50%;
-		transform: translateX(-50%);
+		left: 0;
+		right: 0;
 		background: var(--bg-secondary);
 		border-radius: 12px 12px 0 0;
 		box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.6);
 		padding: 1.25rem;
 		padding-bottom: 0;
-		min-width: 260px;
-		max-width: 340px;
-		width: 90%;
 		z-index: 60;
 	}
 
-	.settings-title {
+	.settings-section-title {
 		display: block;
-		font-size: 1.1rem;
+		font-size: 0.8rem;
 		font-weight: 700;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 0.5rem;
+		margin-top: 0.75rem;
+	}
+
+	.settings-section-title:first-child {
+		margin-top: 0;
+	}
+
+	.settings-option {
+		display: block;
+		width: 100%;
+		padding: 0.6rem 0.65rem;
+		border: none;
+		border-radius: 8px;
+		background: none;
 		color: var(--text-primary);
-		text-align: center;
-		margin-bottom: 0.75rem;
+		font-size: 0.9rem;
+		font-weight: 600;
+		text-align: left;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.settings-option:hover {
+		background: rgba(255, 255, 255, 0.06);
 	}
 
 	.settings-close-btn {

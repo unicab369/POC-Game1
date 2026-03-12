@@ -208,7 +208,7 @@
 
 	.note {
 		font-size: var(--note-font-size, 0.5rem);
-		color: var(--text-secondary);
+		color: var(--su-note-color, rgba(255, 200, 100, 0.7));
 		line-height: 1;
 		font-weight: 600;
 		transition: opacity 0.15s;

@@ -3,7 +3,8 @@
 		{ name: 'FreeCell', icon: '♠', href: '/freecell', available: true, color: '#e94560' },
 		{ name: 'Solitaire', icon: '♦', href: '/solitaire', available: true, color: '#3498db' },
 		{ name: 'Spider', icon: '♣', href: '/spider', available: true, color: '#2ecc71' },
-		{ name: 'Sudoku', icon: '#', href: '/sudoku', available: true, color: '#f39c12' }
+		{ name: 'Sudoku', icon: '#', href: '/sudoku', available: true, color: '#f39c12' },
+		{ name: 'Minesweeper', icon: '💣', href: '/minesweeper', available: true, color: '#9b59b6' }
 	];
 </script>
 
