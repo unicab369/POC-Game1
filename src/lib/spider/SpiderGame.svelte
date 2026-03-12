@@ -684,9 +684,9 @@
 						<button class="confirm-btn no" onclick={onCancelConfirm}>No</button>
 					</div>
 				{:else}
-					<button class="menu-item" onclick={() => confirmAction(onNewGame)}>New Game</button>
-					<button class="menu-item" onclick={() => confirmAction(onReset)}>Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>Quit</button>
+					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame() : confirmAction(onNewGame)}><span class="menu-icon">&#9654;</span> New Game</button>
+					<button class="menu-item" onclick={() => history.length === 0 ? onReset() : confirmAction(onReset)}><span class="menu-icon">&#8634;</span> Reset</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}><span class="menu-icon">&#10005;</span> Quit</button>
 					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
@@ -986,10 +986,17 @@
 		color: var(--text-primary);
 		font-size: 1.15rem;
 		font-weight: 600;
-		text-align: center;
+		text-align: left;
 		cursor: pointer;
 		text-decoration: none;
 		transition: background 0.15s;
+	}
+
+	.menu-icon {
+		display: inline-block;
+		width: 1.5rem;
+		text-align: center;
+		margin-right: 0.5rem;
 	}
 
 	.menu-item:hover {
@@ -999,6 +1006,7 @@
 	.menu-item.cancel {
 		color: var(--text-muted);
 		font-size: 1rem;
+		text-align: center;
 		border-top: 1px solid rgba(255, 255, 255, 0.06);
 	}
 

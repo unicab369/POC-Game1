@@ -61,8 +61,24 @@
 	}
 
 	// Cell interaction
+	let lastCellTap: { row: number; col: number; time: number } | null = null;
+	const DOUBLE_TAP_MS = 350;
+
 	function onCellClick(row: number, col: number) {
 		if (game.won) return;
+		const now = Date.now();
+		const cell = game.grid[row][col];
+
+		// Double-tap on empty non-given cell → toggle notes mode
+		if (lastCellTap && lastCellTap.row === row && lastCellTap.col === col &&
+			now - lastCellTap.time < DOUBLE_TAP_MS && cell.value === 0 && !cell.given) {
+			lastCellTap = null;
+			if (!game.notesMode) game = toggleNotesMode(game);
+			game = selectCell(game, row, col);
+			return;
+		}
+
+		lastCellTap = { row, col, time: now };
 		game = selectCell(game, row, col);
 	}
 
@@ -248,6 +264,9 @@
 							cell.value === highlightedNumber}
 						hasConflict={game.showErrors && hasConflict(game.grid, r, c)}
 						isIncorrect={game.showErrors && isIncorrect(game, r, c)}
+						{completedNumbers}
+						dimNotes={game.selected !== null && game.grid[game.selected.row][game.selected.col].value !== 0}
+						notesMode={game.notesMode}
 						onclick={() => onCellClick(r, c)}
 					/>
 				{/each}
@@ -322,14 +341,14 @@
 					</div>
 				{:else if pickingDifficulty}
 					<span class="confirm-label">Select Difficulty</span>
-					<button class="menu-item" onclick={() => confirmAction(() => onNewGame('easy'))}>Easy</button>
-					<button class="menu-item" onclick={() => confirmAction(() => onNewGame('medium'))}>Medium</button>
-					<button class="menu-item" onclick={() => confirmAction(() => onNewGame('hard'))}>Hard</button>
+					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('easy') : confirmAction(() => onNewGame('easy'))}>Easy</button>
+					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('medium') : confirmAction(() => onNewGame('medium'))}>Medium</button>
+					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('hard') : confirmAction(() => onNewGame('hard'))}>Hard</button>
 					<button class="menu-item back-item" onclick={() => { pickingDifficulty = false; }}>Back</button>
 				{:else}
-					<button class="menu-item" onclick={() => { pickingDifficulty = true; }}>&#9654; New Game</button>
-					<button class="menu-item" onclick={() => confirmAction(onReset)}>&#8634; Reset</button>
-					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}>&#10005; Quit</button>
+					<button class="menu-item" onclick={() => { pickingDifficulty = true; }}><span class="menu-icon">&#9654;</span> New Game</button>
+					<button class="menu-item" onclick={() => history.length === 0 ? onReset() : confirmAction(onReset)}><span class="menu-icon">&#8634;</span> Reset</button>
+					<button class="menu-item" onclick={() => confirmAction(() => { window.location.href = '/'; })}><span class="menu-icon">&#10005;</span> Quit</button>
 					<button class="menu-item cancel" onclick={() => { showPlayMenu = false; }}>Cancel</button>
 				{/if}
 			</div>
@@ -566,10 +585,17 @@
 		color: var(--text-primary);
 		font-size: 1.15rem;
 		font-weight: 600;
-		text-align: center;
+		text-align: left;
 		cursor: pointer;
 		text-decoration: none;
 		transition: background 0.15s;
+	}
+
+	.menu-icon {
+		display: inline-block;
+		width: 1.5rem;
+		text-align: center;
+		margin-right: 0.5rem;
 	}
 
 	.menu-item:hover {
@@ -579,6 +605,7 @@
 	.menu-item.cancel {
 		color: var(--text-muted);
 		font-size: 1rem;
+		text-align: center;
 		border-top: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
@@ -664,11 +691,11 @@
 
 	@media (max-width: 600px) {
 		.board {
-			--cell-size: calc((100vw - 2rem - 4px) / 9);
+			--cell-size: calc((100vw - 0.5rem - 4px) / 9);
 			--cell-font-size: calc(var(--cell-size) * 0.55);
 			--note-font-size: calc(var(--cell-size) * 0.2);
 			max-width: 100%;
-			padding: 0.5rem;
+			padding: 0.25rem;
 		}
 
 		.num-btn {

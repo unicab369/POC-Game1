@@ -10,6 +10,9 @@
 		isSameNumber: boolean;
 		hasConflict: boolean;
 		isIncorrect: boolean;
+		completedNumbers: Set<number>;
+		dimNotes: boolean;
+		notesMode?: boolean;
 		onclick: () => void;
 	}
 
@@ -22,6 +25,9 @@
 		isSameNumber,
 		hasConflict,
 		isIncorrect,
+		completedNumbers,
+		dimNotes,
+		notesMode = false,
 		onclick
 	}: Props = $props();
 </script>
@@ -34,16 +40,17 @@
 	class:same-number={isSameNumber}
 	class:conflict={hasConflict}
 	class:incorrect={isIncorrect}
+	class:notes-mode={notesMode}
 	class:border-right={col === 2 || col === 5}
 	class:border-bottom={row === 2 || row === 5}
 	{onclick}
 >
 	{#if cell.value !== 0}
-		<span class="value">{cell.value}</span>
+		<span class="value" class:solved={completedNumbers.has(cell.value)}>{cell.value}</span>
 	{:else if cell.notes.length > 0}
-		<div class="notes-grid">
+		<div class="notes-grid" class:dim-notes={dimNotes}>
 			{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
-				<span class="note">{cell.notes.includes(n) ? n : ''}</span>
+				<span class="note" class:dim={cell.notes.includes(n) && completedNumbers.has(n)}>{cell.notes.includes(n) ? n : ''}</span>
 			{/each}
 		</div>
 	{/if}
@@ -88,6 +95,15 @@
 		box-shadow: inset 0 0 0 2px rgba(0, 229, 255, 0.7);
 	}
 
+	.cell.notes-mode.selected {
+		background: rgba(255, 160, 40, 0.25);
+		box-shadow: inset 0 0 0 2px rgba(255, 160, 40, 0.7);
+	}
+
+	.cell.notes-mode.highlighted {
+		background: rgba(255, 160, 40, 0.08);
+	}
+
 	.cell.conflict .value,
 	.cell.incorrect .value {
 		color: #e94560;
@@ -103,6 +119,10 @@
 
 	.cell:not(.given) .value {
 		color: #5be0f7;
+	}
+
+	.cell .value.solved {
+		color: #2ecc71;
 	}
 
 	.cell.conflict:not(.given) .value,
@@ -140,5 +160,14 @@
 		color: var(--text-secondary);
 		line-height: 1;
 		font-weight: 600;
+		transition: opacity 0.15s;
+	}
+
+	.note.dim {
+		opacity: 0.25;
+	}
+
+	.dim-notes .note {
+		opacity: 0.25;
 	}
 </style>

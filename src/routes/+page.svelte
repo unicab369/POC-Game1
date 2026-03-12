@@ -61,8 +61,8 @@
 
 	@media (max-width: 500px) {
 		.grid {
-			grid-template-columns: 1fr;
-			max-width: 300px;
+			gap: 1rem;
+			max-width: 100%;
 		}
 	}
 
