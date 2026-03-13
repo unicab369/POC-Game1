@@ -15,7 +15,11 @@
 		notesMode?: boolean;
 		justSolved?: boolean;
 		won?: boolean;
+		highlightedNumber?: number;
 		onclick: () => void;
+		onlongpress?: () => void;
+		onlongpressstart?: () => void;
+		onlongpresscancel?: () => void;
 	}
 
 	let {
@@ -32,10 +36,42 @@
 		notesMode = false,
 		justSolved = false,
 		won = false,
-		onclick
+		highlightedNumber = 0,
+		onclick,
+		onlongpress,
+		onlongpressstart,
+		onlongpresscancel
 	}: Props = $props();
 
 	const winDelay = $derived(`${(row + col) * 40}ms`);
+
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let longPressTriggered = false;
+
+	function onPointerDown() {
+		longPressTriggered = false;
+		onlongpressstart?.();
+		longPressTimer = setTimeout(() => {
+			longPressTriggered = true;
+			onlongpress?.();
+		}, 600);
+	}
+
+	function onPointerUp() {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+			onlongpresscancel?.();
+		}
+	}
+
+	function handleClick() {
+		if (longPressTriggered) {
+			longPressTriggered = false;
+			return;
+		}
+		onclick();
+	}
 </script>
 
 <button
@@ -54,14 +90,17 @@
 	class:border-right={col === 2 || col === 5}
 	class:border-bottom={row === 2 || row === 5}
 	style:animation-delay={won ? winDelay : ''}
-	{onclick}
+	onclick={handleClick}
+	onpointerdown={onPointerDown}
+	onpointerup={onPointerUp}
+	onpointercancel={onPointerUp}
 >
 	{#if cell.value !== 0}
 		<span class="value" class:solved={completedNumbers.has(cell.value)}>{cell.value}</span>
 	{:else if cell.notes.length > 0}
 		<div class="notes-grid" class:dim-notes={dimNotes}>
 			{#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}
-				<span class="note" class:dim={cell.notes.includes(n) && completedNumbers.has(n)}>{cell.notes.includes(n) ? n : ''}</span>
+				<span class="note" class:dim={cell.notes.includes(n) && completedNumbers.has(n)} class:highlight={cell.notes.includes(n) && highlightedNumber === n}>{cell.notes.includes(n) ? n : ''}</span>
 			{/each}
 		</div>
 	{/if}
@@ -214,11 +253,17 @@
 		transition: opacity 0.15s;
 	}
 
+	.note.highlight {
+		color: var(--su-note-color, rgba(255, 200, 100, 0.7));
+		font-weight: 800;
+		opacity: 1;
+	}
+
 	.note.dim {
 		opacity: 0.25;
 	}
 
-	.dim-notes .note {
+	.dim-notes .note:not(.highlight) {
 		opacity: 0.25;
 	}
 </style>

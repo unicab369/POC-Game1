@@ -26,7 +26,7 @@
 			name: 'Ocean',
 			preview: '#5090ff',
 			vars: {
-				'--su-highlight-bg': 'rgba(80,144,255,0.1)',
+				'--su-highlight-bg': 'rgba(80,144,255,0.18)',
 				'--su-same-bg': 'rgba(80,144,255,0.32)',
 				'--su-same-border': 'rgba(80,144,255,0.55)',
 				'--su-same-glow': 'rgba(80,144,255,0.6)',
@@ -44,7 +44,7 @@
 			name: 'Amber',
 			preview: '#ffa030',
 			vars: {
-				'--su-highlight-bg': 'rgba(255,160,48,0.09)',
+				'--su-highlight-bg': 'rgba(255,160,48,0.18)',
 				'--su-same-bg': 'rgba(255,160,48,0.32)',
 				'--su-same-border': 'rgba(255,160,48,0.55)',
 				'--su-same-glow': 'rgba(255,160,48,0.6)',
@@ -62,7 +62,7 @@
 			name: 'Emerald',
 			preview: '#30d888',
 			vars: {
-				'--su-highlight-bg': 'rgba(48,216,136,0.09)',
+				'--su-highlight-bg': 'rgba(48,216,136,0.18)',
 				'--su-same-bg': 'rgba(48,216,136,0.3)',
 				'--su-same-border': 'rgba(48,216,136,0.5)',
 				'--su-same-glow': 'rgba(48,216,136,0.6)',
@@ -80,7 +80,7 @@
 			name: 'Rose',
 			preview: '#ff6090',
 			vars: {
-				'--su-highlight-bg': 'rgba(255,96,144,0.09)',
+				'--su-highlight-bg': 'rgba(255,96,144,0.18)',
 				'--su-same-bg': 'rgba(255,96,144,0.3)',
 				'--su-same-border': 'rgba(255,96,144,0.5)',
 				'--su-same-glow': 'rgba(255,96,144,0.6)',
@@ -98,7 +98,7 @@
 			name: 'Violet',
 			preview: '#a060ff',
 			vars: {
-				'--su-highlight-bg': 'rgba(160,96,255,0.09)',
+				'--su-highlight-bg': 'rgba(160,96,255,0.18)',
 				'--su-same-bg': 'rgba(160,96,255,0.32)',
 				'--su-same-border': 'rgba(160,96,255,0.5)',
 				'--su-same-glow': 'rgba(160,96,255,0.6)',
@@ -114,7 +114,18 @@
 		}
 	];
 
-	let activeScheme = $state(0);
+	const SETTINGS_KEY = 'game-hub:sudoku:settings';
+
+	function loadSettings(): { activeScheme: number } | null {
+		try {
+			const raw = localStorage.getItem(SETTINGS_KEY);
+			if (!raw) return null;
+			return JSON.parse(raw);
+		} catch { return null; }
+	}
+
+	const savedSettings = loadSettings();
+	let activeScheme = $state(savedSettings?.activeScheme ?? 0);
 	let showSettings = $state(false);
 
 	// Build inline style string from active scheme
@@ -123,6 +134,10 @@
 			.map(([k, v]) => `${k}:${v}`)
 			.join(';')
 	);
+
+	$effect(() => {
+		localStorage.setItem(SETTINGS_KEY, JSON.stringify({ activeScheme }));
+	});
 
 	const tips = [
 		{ text: 'Double-tap an empty cell to switch between Notes and Regular mode.', key: 'tip_doubletap' },
@@ -154,21 +169,51 @@
 		return null;
 	});
 
-	let game: GameState = $state(newGame('easy'));
-	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
-	let history: GameState[] = $state([]);
+	const STORAGE_KEY = 'game-hub:sudoku';
+
+	function loadSaved(): { game: GameState; initialGame: GameState; history: GameState[]; elapsed: number } | null {
+		try {
+			const raw = localStorage.getItem(STORAGE_KEY);
+			if (!raw) return null;
+			return JSON.parse(raw);
+		} catch { return null; }
+	}
+
+	const saved = loadSaved();
+	let game: GameState = $state(saved?.game ?? newGame('easy'));
+	let initialGame: GameState = $state(saved?.initialGame ?? structuredClone($state.snapshot(game)));
+	let history: GameState[] = $state(saved?.history ?? []);
 	let showPlayMenu = $state(false);
 	let pendingAction: (() => void) | null = $state(null);
-	let elapsed = $state(0);
+	let elapsed = $state(saved?.elapsed ?? 0);
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let pickingDifficulty = $state(false);
-	let eraseError = $state('');
-	let eraseErrorTimer: ReturnType<typeof setTimeout> | null = null;
+	let snackbar = $state('');
+	let snackbarTimer: ReturnType<typeof setTimeout> | null = null;
+	let snackbarLoading = $state(false);
+
+	function showSnackbar(msg: string) {
+		if (snackbarTimer) clearTimeout(snackbarTimer);
+		snackbarLoading = false;
+		snackbar = msg;
+		snackbarTimer = setTimeout(() => { snackbar = ''; }, 3000);
+	}
+
+	function showLoadingSnackbar(msg: string) {
+		if (snackbarTimer) clearTimeout(snackbarTimer);
+		snackbar = msg;
+		snackbarLoading = true;
+	}
+
+	function hideSnackbar() {
+		if (snackbarTimer) clearTimeout(snackbarTimer);
+		snackbar = '';
+		snackbarLoading = false;
+	}
 
 	// Timer
 	function startTimer() {
 		stopTimer();
-		elapsed = 0;
 		timerInterval = setInterval(() => {
 			if (!game.won) elapsed++;
 		}, 1000);
@@ -184,6 +229,16 @@
 	$effect(() => {
 		startTimer();
 		return () => stopTimer();
+	});
+
+	$effect(() => {
+		const snapshot = {
+			game: $state.snapshot(game),
+			initialGame: $state.snapshot(initialGame),
+			history: $state.snapshot(history),
+			elapsed
+		};
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 	});
 
 	function formatTime(s: number): string {
@@ -223,9 +278,11 @@
 			if (game.notesMode) {
 				game = toggleNotesMode(game);
 				incrementTip('tip_doubletap');
+				showSnackbar('Normal mode');
 			} else if (cell.value === 0 && !cell.given) {
 				game = toggleNotesMode(game);
 				incrementTip('tip_doubletap');
+				showSnackbar('Notes mode');
 			}
 			game = selectCell(game, row, col);
 			return;
@@ -234,6 +291,7 @@
 		lastCellTap = { row, col, time: now };
 		if (game.notesMode && cell.value !== 0) {
 			game = toggleNotesMode(game);
+			showSnackbar('Normal mode');
 		}
 		game = selectCell(game, row, col);
 	}
@@ -261,7 +319,11 @@
 		}
 
 		pushHistory();
+		const wasNotes = game.notesMode;
 		game = handleNumberInput(game, num);
+		if (!wasNotes) {
+			showSnackbar(`Filled ${num}`);
+		}
 	}
 
 	const canErase = $derived.by(() => {
@@ -271,31 +333,47 @@
 		return cell.value !== 0 || cell.notes.length > 0;
 	});
 
-	function showEraseError(msg: string) {
-		if (eraseErrorTimer) clearTimeout(eraseErrorTimer);
-		eraseError = msg;
-		eraseErrorTimer = setTimeout(() => { eraseError = ''; }, 2000);
-	}
-
 	function onErase() {
 		if (game.won) return;
 		if (!game.selected) {
-			showEraseError('Select a cell first');
+			showSnackbar('Select a cell first');
 			return;
 		}
 		const cell = game.grid[game.selected.row][game.selected.col];
 		if (cell.given) {
-			showEraseError('Cannot erase a given number');
+			showSnackbar('Cannot erase a given number');
 			return;
 		}
 		if (cell.value === 0 && cell.notes.length === 0) {
-			showEraseError('Nothing to erase');
+			showSnackbar('Nothing to erase');
 			return;
 		}
 		pushHistory();
 		game = handleErase(game);
+		showSnackbar('Erased');
 	}
 
+	function onCellLongPressStart(row: number, col: number) {
+		if (game.won) return;
+		const cell = game.grid[row][col];
+		if (cell.given || (cell.value === 0 && cell.notes.length === 0)) return;
+		showLoadingSnackbar('Erasing…');
+	}
+
+	function onCellLongPressCancel() {
+		if (snackbarLoading) hideSnackbar();
+	}
+
+	function onCellLongPress(row: number, col: number) {
+		if (game.won) return;
+		const cell = game.grid[row][col];
+		if (cell.given) return;
+		if (cell.value === 0 && cell.notes.length === 0) return;
+		game = selectCell(game, row, col);
+		pushHistory();
+		game = handleErase(game);
+		showSnackbar('Erased');
+	}
 
 	// Track the last non-zero number selected for persistent highlighting
 	let highlightedNumber = $state(0);
@@ -347,6 +425,7 @@
 		pickingDifficulty = false;
 		pendingAction = null;
 		tipIndex = (tipIndex + 1) % tips.length;
+		elapsed = 0;
 		startTimer();
 	}
 
@@ -355,6 +434,7 @@
 		history = [];
 		showPlayMenu = false;
 		tipIndex = (tipIndex + 1) % tips.length;
+		elapsed = 0;
 		startTimer();
 	}
 
@@ -416,6 +496,7 @@
 		// N for notes toggle
 		if (e.key === 'n' || e.key === 'N') {
 			game = toggleNotesMode(game);
+			showSnackbar(game.notesMode ? 'Notes mode' : 'Normal mode');
 			return;
 		}
 	}
@@ -445,16 +526,14 @@
 		flash: 'Flash',
 		easy: 'Easy',
 		medium: 'Medium',
-		hard: 'Hard',
-		evil: 'Evil'
+		hard: 'Hard'
 	};
 
 	const difficultyColor: Record<Difficulty, string> = {
 		flash: '#5be0f7',
 		easy: '#2ecc71',
 		medium: '#f39c12',
-		hard: '#e94560',
-		evil: '#a040e0'
+		hard: '#e94560'
 	};
 </script>
 
@@ -472,6 +551,15 @@
 
 	<div class="difficulty-badge" style="background: {difficultyColor[game.difficulty]}">
 		{difficultyLabel[game.difficulty]}
+	</div>
+
+	<div class="snackbar-slot">
+		{#if snackbar}
+			<div class="snackbar" class:loading={snackbarLoading}>
+				{#if snackbarLoading}<span class="snackbar-fill"></span>{/if}
+				<span class="snackbar-text">{snackbar}</span>
+			</div>
+		{/if}
 	</div>
 
 	<div class="tip" class:tip-hidden={!visibleTip}>
@@ -502,7 +590,11 @@
 						notesMode={game.notesMode}
 						justSolved={justSolvedNumber !== 0 && cell.value === justSolvedNumber}
 						won={game.won}
+						{highlightedNumber}
 						onclick={() => onCellClick(r, c)}
+						onlongpressstart={() => onCellLongPressStart(r, c)}
+						onlongpresscancel={onCellLongPressCancel}
+						onlongpress={() => onCellLongPress(r, c)}
 					/>
 				{/each}
 			{/each}
@@ -536,23 +628,13 @@
 		<button
 			class="action-btn"
 			class:notes-active={game.notesMode}
-			onclick={() => { game = toggleNotesMode(game); }}
+			onclick={() => { game = toggleNotesMode(game); showSnackbar(game.notesMode ? 'Notes mode' : 'Normal mode'); }}
 			disabled={game.won || (game.selected !== null && game.grid[game.selected.row][game.selected.col].value !== 0)}
 		>
 			Notes
 		</button>
-		<button
-			class="action-btn"
-			class:errors-active={game.showErrors}
-			onclick={() => { game = toggleShowErrors(game); }}
-		>
-			Errors
-		</button>
 	</div>
 
-	{#if eraseError}
-		<div class="erase-error">{eraseError}</div>
-	{/if}
 
 	<!-- Settings popup -->
 	{#if showSettings}
@@ -575,7 +657,11 @@
 				{/each}
 			</div>
 			<span class="settings-section-title">Options</span>
-			<button class="settings-option" onclick={() => { tips.forEach(t => { if (isBrowser) localStorage.removeItem(t.key); }); tipVersion++; }}>Reset Tips</button>
+			<label class="settings-checkbox">
+				<span>Show Errors</span>
+				<input type="checkbox" checked={game.showErrors} onchange={() => { game = toggleShowErrors(game); }} />
+			</label>
+			<button class="settings-option" style="border-bottom: none; margin-bottom: 0.75rem;" onclick={() => { tips.forEach(t => { if (isBrowser) localStorage.removeItem(t.key); }); tipVersion++; }}>Reset Tips</button>
 			<button class="settings-close-btn" onclick={() => { showSettings = false; }}>Close</button>
 		</div>
 	{/if}
@@ -600,6 +686,7 @@
 	<div class="play-menu-wrapper">
 		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; pickingDifficulty = false; }}><span class="btn-icon">&#9654;&#65039;</span> Play</button>
 		{#if showPlayMenu}
+			<div class="play-backdrop" onclick={() => { showPlayMenu = false; pendingAction = null; pickingDifficulty = false; }}></div>
 			<div class="play-menu">
 				{#if pendingAction}
 					<span class="confirm-label">Are you sure?</span>
@@ -613,7 +700,6 @@
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('easy') : confirmAction(() => onNewGame('easy'))}>Easy</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('medium') : confirmAction(() => onNewGame('medium'))}>Medium</button>
 					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('hard') : confirmAction(() => onNewGame('hard'))}>Hard</button>
-					<button class="menu-item" onclick={() => history.length === 0 ? onNewGame('evil') : confirmAction(() => onNewGame('evil'))}>Evil</button>
 					<button class="menu-item back-item" onclick={() => { pickingDifficulty = false; }}>Back</button>
 				{:else}
 					<button class="menu-item" onclick={() => { pickingDifficulty = true; }}><span class="menu-icon">&#9654;</span> New Game</button>
@@ -630,12 +716,12 @@
 	.board {
 		--cell-size: 42px;
 		--cell-font-size: 1.4rem;
-		--note-font-size: 0.5rem;
+		--note-font-size: 0.6rem;
 
 		position: relative;
 		max-width: 440px;
 		margin: 0 auto;
-		padding: 0.5rem;
+		padding: 0;
 		padding-bottom: 4rem;
 		height: 100dvh;
 		display: flex;
@@ -649,7 +735,7 @@
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
+		justify-content: flex-start;
 	}
 
 	.header {
@@ -683,7 +769,7 @@
 
 	.stat {
 		color: var(--text-primary);
-		font-size: 1.25rem;
+		font-size: 1.45rem;
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 	}
@@ -714,7 +800,7 @@
 	}
 
 	.tip {
-		font-size: 1.5rem;
+		font-size: 1.1rem;
 		color: var(--text-muted);
 		margin-bottom: 0.5rem;
 		min-height: 4.2rem;
@@ -730,12 +816,15 @@
 		display: flex;
 		justify-content: center;
 		margin-bottom: 1rem;
+		width: 100%;
 	}
 
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(9, var(--cell-size, 42px));
-		grid-template-rows: repeat(9, var(--cell-size, 42px));
+		width: 100%;
+		grid-template-columns: repeat(9, 1fr);
+		grid-template-rows: repeat(9, auto);
+		aspect-ratio: 1;
 		border: 2px solid rgba(255, 255, 255, 0.7);
 	}
 
@@ -743,7 +832,7 @@
 		display: flex;
 		justify-content: center;
 		gap: 0.35rem;
-		margin-bottom: 0.75rem;
+		margin-bottom: 1.25rem;
 	}
 
 	.num-btn {
@@ -780,12 +869,12 @@
 	}
 
 	.action-btn {
-		padding: 0.45rem 1.1rem;
+		padding: 0.6rem 1.5rem;
 		border: 1px solid rgba(255, 255, 255, 0.12);
 		border-radius: 8px;
 		background: transparent;
 		color: var(--text-secondary);
-		font-size: 0.85rem;
+		font-size: 1.05rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: background 0.15s, color 0.15s, border-color 0.15s;
@@ -805,25 +894,60 @@
 		opacity: 0.4;
 	}
 
-	.erase-error {
-		text-align: center;
-		color: #e94560;
-		font-size: 0.8rem;
-		font-weight: 600;
-		margin-top: -0.25rem;
-		margin-bottom: 0.25rem;
-		animation: fade-in 0.15s ease-out;
+	.snackbar-slot {
+		height: 0;
+		display: flex;
+		justify-content: center;
+		position: relative;
+		z-index: 200;
 	}
 
-	@keyframes fade-in {
-		from { opacity: 0; transform: translateY(-4px); }
-		to { opacity: 1; transform: translateY(0); }
+	.snackbar {
+		position: absolute;
+		top: 0;
+		padding: 0.45rem 1.25rem;
+		background: rgba(255, 255, 255, 0.95);
+		color: #111;
+		font-size: 0.9rem;
+		font-weight: 700;
+		border-radius: 999px;
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+		white-space: nowrap;
+		animation: snackbar-in 0.2s ease-out;
+		overflow: hidden;
 	}
 
-	.action-btn.errors-active {
-		background: rgba(233, 69, 96, 0.15);
-		color: #e94560;
-		border-color: rgba(233, 69, 96, 0.3);
+	.snackbar.loading {
+		background: rgba(255, 255, 255, 0.25);
+		color: #fff;
+	}
+
+	.snackbar-text {
+		position: relative;
+		z-index: 1;
+	}
+
+	.snackbar-fill {
+		position: absolute;
+		inset: 0;
+		background: rgba(255, 255, 255, 0.95);
+		border-radius: 999px;
+		transform-origin: left;
+		animation: snackbar-load 600ms linear forwards;
+	}
+
+	.snackbar.loading .snackbar-text {
+		mix-blend-mode: difference;
+	}
+
+	@keyframes snackbar-load {
+		from { transform: scaleX(0); }
+		to { transform: scaleX(1); }
+	}
+
+	@keyframes snackbar-in {
+		from { opacity: 0; transform: scale(0.9); }
+		to { opacity: 1; transform: scale(1); }
 	}
 
 	.action-btn.notes-active {
@@ -929,10 +1053,9 @@
 	}
 
 	.menu-item.cancel {
-		color: var(--text-muted);
-		font-size: 1rem;
+		color: var(--text-primary);
 		text-align: center;
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		border-top: 1px solid rgba(255, 255, 255, 0.5);
 	}
 
 	.back-item {
@@ -943,8 +1066,8 @@
 
 	.confirm-label {
 		display: block;
-		padding: 1.5rem 2rem 0.75rem;
-		font-size: 1.4rem;
+		padding: 1rem 1.5rem 0.5rem;
+		font-size: 1.1rem;
 		font-weight: 700;
 		color: var(--text-secondary);
 		text-align: center;
@@ -952,16 +1075,16 @@
 
 	.confirm-buttons {
 		display: flex;
-		gap: 1rem;
-		padding: 0.75rem 2rem 1.5rem;
+		gap: 0.75rem;
+		padding: 0.5rem 1.5rem 1rem;
 		justify-content: center;
 	}
 
 	.confirm-btn {
-		padding: 0.75rem 2.5rem;
+		padding: 0.5rem 1.5rem;
 		border: none;
 		border-radius: 8px;
-		font-size: 1.25rem;
+		font-size: 1.05rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: background 0.15s;
@@ -1016,6 +1139,13 @@
 		margin-bottom: 1.5rem;
 	}
 
+	.play-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 50;
+	}
+
 	.settings-backdrop {
 		position: fixed;
 		inset: 0;
@@ -1030,6 +1160,7 @@
 		background: var(--bg-secondary);
 		border-radius: 12px 12px 0 0;
 		box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.6);
+		border-top: 1.5px solid rgba(255, 255, 255, 0.7);
 		padding: 1.25rem;
 		padding-bottom: 0;
 		z-index: 60;
@@ -1055,10 +1186,10 @@
 		width: 100%;
 		padding: 0.6rem 0.65rem;
 		border: none;
-		border-radius: 8px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 		background: none;
 		color: var(--text-primary);
-		font-size: 0.9rem;
+		font-size: 1.05rem;
 		font-weight: 600;
 		text-align: left;
 		cursor: pointer;
@@ -1069,10 +1200,35 @@
 		background: rgba(255, 255, 255, 0.06);
 	}
 
+	.settings-checkbox {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.6rem 0.65rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		cursor:
+		font-size: 1.05rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		transition: background 0.15s;
+	}
+
+	.settings-checkbox:hover {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.settings-checkbox input[type="checkbox"] {
+		width: 24px;
+		height: 24px;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
+
 	.settings-close-btn {
 		display: block;
 		width: 100%;
 		margin-top: 0.75rem;
+		margin-bottom: calc(0.75rem + 10px);
 		padding: 0.7rem;
 		border: none;
 		border-radius: 8px;
@@ -1126,7 +1282,7 @@
 	}
 
 	.scheme-name {
-		font-size: 0.9rem;
+		font-size: 1.05rem;
 		font-weight: 600;
 		color: var(--text-primary);
 		flex: 1;
@@ -1139,11 +1295,11 @@
 
 	@media (max-width: 600px) {
 		.board {
-			--cell-size: calc((100vw - 0.5rem - 4px) / 9);
+			--cell-size: calc(100vw / 9);
 			--cell-font-size: calc(var(--cell-size) * 0.55);
-			--note-font-size: calc(var(--cell-size) * 0.2);
+			--note-font-size: calc(var(--cell-size) * 0.24);
 			max-width: 100%;
-			padding: 0.25rem;
+			padding: 0;
 		}
 
 		.num-btn {
@@ -1158,7 +1314,7 @@
 		}
 
 		.stat {
-			font-size: 1rem;
+			font-size: 1.15rem;
 		}
 	}
 </style>

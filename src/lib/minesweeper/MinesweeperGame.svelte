@@ -4,12 +4,23 @@
 	import { newGame, revealCell, toggleFlag } from './game';
 	import type { GameState, Difficulty } from './game';
 
-	let game: GameState = $state(newGame('easy'));
-	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
-	let history: GameState[] = $state([]);
+	const STORAGE_KEY = 'game-hub:minesweeper';
+
+	function loadSaved(): { game: GameState; initialGame: GameState; history: GameState[]; elapsed: number } | null {
+		try {
+			const raw = localStorage.getItem(STORAGE_KEY);
+			if (!raw) return null;
+			return JSON.parse(raw);
+		} catch { return null; }
+	}
+
+	const saved = loadSaved();
+	let game: GameState = $state(saved?.game ?? newGame('easy'));
+	let initialGame: GameState = $state(saved?.initialGame ?? structuredClone($state.snapshot(game)));
+	let history: GameState[] = $state(saved?.history ?? []);
 	let showPlayMenu = $state(false);
 	let pendingAction: (() => void) | null = $state(null);
-	let elapsed = $state(0);
+	let elapsed = $state(saved?.elapsed ?? 0);
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let pickingDifficulty = $state(false);
 	let selectedCell: { row: number; col: number } = $state({ row: 0, col: 0 });
@@ -40,7 +51,20 @@
 	}
 
 	$effect(() => {
+		if (saved?.game.started && !saved.game.won && !saved.game.lost) {
+			ensureTimerRunning();
+		}
 		return () => stopTimer();
+	});
+
+	$effect(() => {
+		const snapshot = {
+			game: $state.snapshot(game),
+			initialGame: $state.snapshot(initialGame),
+			history: $state.snapshot(history),
+			elapsed
+		};
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 	});
 
 	function formatTime(s: number): string {
@@ -265,6 +289,7 @@
 	<div class="play-menu-wrapper">
 		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; pickingDifficulty = false; }}><span class="btn-icon">&#9654;&#65039;</span> Play</button>
 		{#if showPlayMenu}
+			<div class="play-backdrop" onclick={() => { showPlayMenu = false; pendingAction = null; pickingDifficulty = false; }}></div>
 			<div class="play-menu">
 				{#if pendingAction}
 					<span class="confirm-label">Are you sure?</span>
@@ -344,7 +369,7 @@
 
 	.stat {
 		color: var(--text-primary);
-		font-size: 1.25rem;
+		font-size: 1.45rem;
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 	}
@@ -486,6 +511,13 @@
 		position: relative;
 	}
 
+	.play-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 50;
+	}
+
 	.play-menu {
 		position: fixed;
 		bottom: 50%;
@@ -526,10 +558,9 @@
 	}
 
 	.menu-item.cancel {
-		color: var(--text-muted);
-		font-size: 1rem;
+		color: var(--text-primary);
 		text-align: center;
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		border-top: 1px solid rgba(255, 255, 255, 0.5);
 	}
 
 	.back-item {
@@ -595,7 +626,7 @@
 		}
 
 		.stat {
-			font-size: 1rem;
+			font-size: 1.15rem;
 		}
 	}
 </style>

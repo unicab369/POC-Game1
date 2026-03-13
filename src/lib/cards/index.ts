@@ -11,3 +11,4 @@ export {
 } from './utils';
 export { default as CardComponent } from './Card.svelte';
 export { default as Pile } from './Pile.svelte';
+export { default as WinAnimation } from './WinAnimation.svelte';

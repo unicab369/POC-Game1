@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
-	import { CardComponent } from '$lib/cards';
+	import { CardComponent, WinAnimation } from '$lib/cards';
 	import type { SpiderCard } from './game';
 	import { Pile } from '$lib/cards';
 	import {
@@ -27,16 +27,28 @@
 		offsetY: number;
 	}
 
-	let game: GameState = $state(newGame());
-	let initialGame: GameState = $state(structuredClone($state.snapshot(game)));
-	let history: GameState[] = $state([]);
+	const STORAGE_KEY = 'game-hub:spider';
+
+	function loadSaved(): { game: GameState; initialGame: GameState; history: GameState[]; elapsed: number } | null {
+		try {
+			const raw = localStorage.getItem(STORAGE_KEY);
+			if (!raw) return null;
+			return JSON.parse(raw);
+		} catch { return null; }
+	}
+
+	const saved = loadSaved();
+	let game: GameState = $state(saved?.game ?? newGame());
+	let initialGame: GameState = $state(saved?.initialGame ?? structuredClone($state.snapshot(game)));
+	let history: GameState[] = $state(saved?.history ?? []);
 	let showPlayMenu = $state(false);
 	let pendingAction: (() => void) | null = $state(null);
-	let elapsed = $state(0);
+	let elapsed = $state(saved?.elapsed ?? 0);
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let drag: DragState | null = $state(null);
 	let suppressNextClick = $state(false);
 	let hint: { sourceIndex: number; cardIndex: number; destIndex: number } | null = $state(null);
+	let showWinModal = $state(false);
 
 	interface MoveAnim {
 		cards: SpiderCard[];
@@ -212,7 +224,6 @@
 
 	function startTimer() {
 		stopTimer();
-		elapsed = 0;
 		timerInterval = setInterval(() => {
 			if (!game.won) elapsed++;
 		}, 1000);
@@ -228,6 +239,25 @@
 	$effect(() => {
 		startTimer();
 		return () => stopTimer();
+	});
+
+	$effect(() => {
+		const snapshot = {
+			game: $state.snapshot(game),
+			initialGame: $state.snapshot(initialGame),
+			history: $state.snapshot(history),
+			elapsed
+		};
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+	});
+
+	$effect(() => {
+		if (!game.won) {
+			showWinModal = false;
+			return;
+		}
+		const t = setTimeout(() => { showWinModal = true; }, 1500);
+		return () => clearTimeout(t);
 	});
 
 	function formatTime(s: number): string {
@@ -367,6 +397,7 @@
 		initialGame = structuredClone($state.snapshot(game));
 		history = [];
 		showPlayMenu = false;
+		elapsed = 0;
 		startTimer();
 	}
 
@@ -375,6 +406,7 @@
 		game = structuredClone($state.snapshot(initialGame));
 		history = [];
 		showPlayMenu = false;
+		elapsed = 0;
 		startTimer();
 	}
 
@@ -659,8 +691,9 @@
 		</div>
 	{/if}
 
-	<!-- Win overlay -->
-	{#if game.won}
+	<!-- Win animation + overlay -->
+	<WinAnimation active={game.won} />
+	{#if showWinModal}
 		<div class="win-overlay">
 			<div class="win-box">
 				<h2>You Win!</h2>
@@ -677,6 +710,7 @@
 	<div class="play-menu-wrapper">
 		<button class="btn" onclick={() => { showPlayMenu = !showPlayMenu; pendingAction = null; }}><span class="btn-icon">&#9654;&#65039;</span> Play</button>
 		{#if showPlayMenu}
+			<div class="play-backdrop" onclick={() => { showPlayMenu = false; pendingAction = null; }}></div>
 			<div class="play-menu">
 				{#if pendingAction}
 					<span class="confirm-label">Are you sure?</span>
@@ -766,7 +800,7 @@
 
 	.stat {
 		color: var(--text-primary);
-		font-size: 1.25rem;
+		font-size: 1.45rem;
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 	}
@@ -971,6 +1005,13 @@
 		position: relative;
 	}
 
+	.play-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 50;
+	}
+
 	.play-menu {
 		position: fixed;
 		bottom: 50%;
@@ -1012,10 +1053,9 @@
 	}
 
 	.menu-item.cancel {
-		color: var(--text-muted);
-		font-size: 1rem;
+		color: var(--text-primary);
 		text-align: center;
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		border-top: 1px solid rgba(255, 255, 255, 0.5);
 	}
 
 	.confirm-label {
@@ -1065,7 +1105,7 @@
 	.win-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.7);
+		background: transparent;
 		display: flex;
 		align-items: center;
 		justify-content: center;

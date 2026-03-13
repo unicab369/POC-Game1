@@ -1,4 +1,4 @@
-export type Difficulty = 'flash' | 'easy' | 'medium' | 'hard' | 'evil';
+export type Difficulty = 'flash' | 'easy' | 'medium' | 'hard';
 
 export interface Cell {
 	value: number; // 0 = empty
@@ -17,7 +17,7 @@ export interface GameState {
 	difficulty: Difficulty;
 }
 
-const GIVENS: Record<Difficulty, number> = { flash: 45, easy: 38, medium: 30, hard: 25, evil: 20 };
+const GIVENS: Record<Difficulty, number> = { flash: 45, easy: 38, medium: 30, hard: 25 };
 
 // --- Internal puzzle generation ---
 
@@ -164,6 +164,32 @@ export function setCellValue(state: GameState, row: number, col: number, num: nu
 	if (cell.given) return state;
 	cell.value = num;
 	cell.notes = [];
+	// Clear notes with this number from same row, column, and box
+	for (let c = 0; c < 9; c++) {
+		if (c !== col) {
+			const n = newState.grid[row][c].notes;
+			const idx = n.indexOf(num);
+			if (idx !== -1) n.splice(idx, 1);
+		}
+	}
+	for (let r = 0; r < 9; r++) {
+		if (r !== row) {
+			const n = newState.grid[r][col].notes;
+			const idx = n.indexOf(num);
+			if (idx !== -1) n.splice(idx, 1);
+		}
+	}
+	const br = Math.floor(row / 3) * 3;
+	const bc = Math.floor(col / 3) * 3;
+	for (let r = br; r < br + 3; r++) {
+		for (let c = bc; c < bc + 3; c++) {
+			if (r !== row || c !== col) {
+				const n = newState.grid[r][c].notes;
+				const idx = n.indexOf(num);
+				if (idx !== -1) n.splice(idx, 1);
+			}
+		}
+	}
 	newState.moves++;
 	if (checkWin(newState)) newState.won = true;
 	return newState;
