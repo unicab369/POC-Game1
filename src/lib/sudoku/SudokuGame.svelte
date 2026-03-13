@@ -353,11 +353,16 @@
 		showSnackbar('Erased');
 	}
 
+	let eraseSnackbarDelay: ReturnType<typeof setTimeout> | null = null;
+
 	function onCellLongPressStart(row: number, col: number) {
 		if (game.won) return;
 		const cell = game.grid[row][col];
 		if (cell.given || (cell.value === 0 && cell.notes.length === 0)) return;
-		showLoadingSnackbar('Erasing…');
+		eraseSnackbarDelay = setTimeout(() => {
+			showLoadingSnackbar('Erasing…');
+			eraseSnackbarDelay = null;
+		}, 100);
 	}
 
 	function onCellLongPressCancel() {
@@ -399,6 +404,28 @@
 			if (counts[n] >= 9) set.add(n);
 		}
 		return set;
+	});
+
+	const remainingCounts = $derived.by(() => {
+		const counts = new Array(10).fill(0);
+		for (let r = 0; r < 9; r++) {
+			for (let c = 0; c < 9; c++) {
+				const v = game.grid[r][c].value;
+				if (v > 0) counts[v]++;
+			}
+		}
+		const remaining: Record<number, number> = {};
+		for (let n = 1; n <= 9; n++) {
+			remaining[n] = 9 - counts[n];
+		}
+		return remaining;
+	});
+
+	const selectedNotes = $derived.by(() => {
+		if (!game.selected) return new Set<number>();
+		const cell = game.grid[game.selected.row][game.selected.col];
+		if (cell.value !== 0) return new Set<number>();
+		return new Set(cell.notes);
 	});
 
 	// Track newly solved numbers for animation
@@ -607,10 +634,16 @@
 			<button
 				class="num-btn"
 				class:dim={completedNumbers.has(num)}
+				class:notes-mode={game.notesMode}
+				class:normal-mode={!game.notesMode}
+				class:note-active={game.notesMode && selectedNotes.has(num)}
 				onclick={() => onNumberPad(num)}
 				disabled={game.won}
 			>
 				{num}
+				{#if remainingCounts[num] > 0 && remainingCounts[num] < 5}
+					<span class="num-badge">{remainingCounts[num]}</span>
+				{/if}
 			</button>
 		{/each}
 	</div>
@@ -857,8 +890,45 @@
 		cursor: default;
 	}
 
+	.num-btn {
+		position: relative;
+	}
+
+	.num-badge {
+		position: absolute;
+		bottom: -3px;
+		right: -3px;
+		min-width: 14px;
+		height: 14px;
+		border-radius: 999px;
+		background: #888;
+		color: #1a1a2e;
+		font-size: 0.55rem;
+		font-weight: 800;
+		line-height: 14px;
+		text-align: center;
+		padding: 0 2px;
+	}
+
 	.num-btn.dim {
-		opacity: 0.25;
+		opacity: 0.15;
+	}
+
+	.num-btn.normal-mode {
+		background: var(--su-selected-bg);
+		color: var(--su-selected-border);
+		border: 1px solid var(--su-selected-border);
+	}
+
+	.num-btn.notes-mode {
+		background: var(--su-notes-selected-bg);
+		color: var(--su-notes-selected-border);
+		border: 1px solid var(--su-notes-selected-border);
+	}
+
+	.num-btn.note-active {
+		background: var(--su-notes-selected-border);
+		color: var(--bg-primary);
 	}
 
 	.action-bar {
@@ -933,7 +1003,7 @@
 		background: rgba(255, 255, 255, 0.95);
 		border-radius: 999px;
 		transform-origin: left;
-		animation: snackbar-load 600ms linear forwards;
+		animation: snackbar-load 500ms linear forwards;
 	}
 
 	.snackbar.loading .snackbar-text {

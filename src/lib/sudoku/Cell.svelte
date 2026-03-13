@@ -54,7 +54,7 @@
 		longPressTimer = setTimeout(() => {
 			longPressTriggered = true;
 			onlongpress?.();
-		}, 600);
+		}, 500);
 	}
 
 	function onPointerUp() {

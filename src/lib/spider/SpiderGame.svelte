@@ -704,6 +704,7 @@
 </div>
 
 <!-- Controls -->
+{#if !game.won}
 <div class="controls">
 	<button class="btn btn-secondary" onclick={findHint} disabled={game.won}><span class="btn-icon">💡</span> Hint</button>
 	<button class="btn btn-secondary" onclick={onUndo} disabled={history.length === 0}><span class="btn-icon">&#8634;</span> Undo</button>
@@ -728,6 +729,7 @@
 		{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	.board {
