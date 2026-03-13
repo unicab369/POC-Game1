@@ -78,19 +78,19 @@
 		},
 		{
 			name: 'Rose',
-			preview: '#ff6090',
+			preview: '#ff70a0',
 			vars: {
-				'--su-highlight-bg': 'rgba(255,96,144,0.18)',
-				'--su-same-bg': 'rgba(255,96,144,0.3)',
-				'--su-same-border': 'rgba(255,96,144,0.5)',
-				'--su-same-glow': 'rgba(255,96,144,0.6)',
-				'--su-selected-bg': 'rgba(255,96,144,0.36)',
-				'--su-selected-border': 'rgba(255,120,160,0.85)',
-				'--su-notes-selected-bg': 'rgba(100,220,180,0.25)',
-				'--su-notes-selected-border': 'rgba(100,220,180,0.65)',
-				'--su-notes-highlight-bg': 'rgba(100,220,180,0.08)',
-				'--su-user-color': '#ffb0c8',
-				'--su-note-color': 'rgba(100,220,180,0.7)',
+				'--su-highlight-bg': 'rgba(255,112,160,0.18)',
+				'--su-same-bg': 'rgba(255,112,160,0.3)',
+				'--su-same-border': 'rgba(255,112,160,0.5)',
+				'--su-same-glow': 'rgba(255,112,160,0.6)',
+				'--su-selected-bg': 'rgba(255,112,160,0.36)',
+				'--su-selected-border': 'rgba(255,140,180,0.9)',
+				'--su-notes-selected-bg': 'rgba(100,230,190,0.25)',
+				'--su-notes-selected-border': 'rgba(100,230,190,0.65)',
+				'--su-notes-highlight-bg': 'rgba(100,230,190,0.08)',
+				'--su-user-color': '#ffc0d8',
+				'--su-note-color': 'rgba(100,230,190,0.7)',
 				'--su-error-color': '#e03030'
 			}
 		},
@@ -366,6 +366,10 @@
 	}
 
 	function onCellLongPressCancel() {
+		if (eraseSnackbarDelay) {
+			clearTimeout(eraseSnackbarDelay);
+			eraseSnackbarDelay = null;
+		}
 		if (snackbarLoading) hideSnackbar();
 	}
 
@@ -927,8 +931,10 @@
 	}
 
 	.num-btn.note-active {
-		background: var(--su-notes-selected-border);
+		background: var(--su-note-color);
 		color: var(--bg-primary);
+		border-color: var(--su-note-color);
+		transition: none;
 	}
 
 	.action-bar {
@@ -999,10 +1005,12 @@
 
 	.snackbar-fill {
 		position: absolute;
-		inset: 0;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		width: 0;
 		background: rgba(255, 255, 255, 0.95);
 		border-radius: 999px;
-		transform-origin: left;
 		animation: snackbar-load 500ms linear forwards;
 	}
 
@@ -1011,8 +1019,8 @@
 	}
 
 	@keyframes snackbar-load {
-		from { transform: scaleX(0); }
-		to { transform: scaleX(1); }
+		from { width: 0; }
+		to { width: 100%; }
 	}
 
 	@keyframes snackbar-in {
@@ -1290,7 +1298,7 @@
 	.settings-checkbox input[type="checkbox"] {
 		width: 24px;
 		height: 24px;
-		accent-color: var(--accent);
+		accent-color: #4a9eff;
 		cursor: pointer;
 	}
 
