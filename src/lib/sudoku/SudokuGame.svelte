@@ -991,6 +991,8 @@
 		white-space: nowrap;
 		animation: snackbar-in 0.2s ease-out;
 		overflow: hidden;
+		min-width: 6.5rem;
+		text-align: center;
 	}
 
 	.snackbar.loading {
